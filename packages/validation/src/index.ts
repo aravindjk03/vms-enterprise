@@ -1,0 +1,1193 @@
+import { z } from 'zod';
+
+// ============================================================================
+// 1. COMMON TRANSACTIONS & ENVELOPES
+// ============================================================================
+
+export const SourceDomainSchema = z.enum([
+  'VISITOR',
+  'CUSTOMER',
+  'CONTRACTOR',
+  'SERVICE',
+  'MATERIAL',
+  'VEHICLE',
+]);
+
+export const TransactionStageSchema = z.enum([
+  'DRAFT',
+  'APPROVAL',
+  'SCHEDULED',
+  'CHECK_IN',
+  'ACTIVE',
+  'CHECK_OUT',
+  'CLOSED',
+]);
+
+export const TransactionStatusSchema = z.enum([
+  'DRAFT',
+  'PENDING',
+  'APPROVED',
+  'REJECTED',
+  'CONFIRMED',
+  'IN_PROGRESS',
+  'ON_PREMISES',
+  'CHECKED_OUT',
+  'COMPLETED',
+  'CANCELLED',
+  'EXPIRED',
+  'NO_SHOW',
+  'BLOCKED',
+]);
+
+export const CommonTransactionEnvelopeSchema = z.object({
+  transactionId: z.string().min(3),
+  tenantId: z.string().uuid(),
+  organizationId: z.string().uuid(),
+  siteId: z.string().uuid(),
+  sourceDomain: SourceDomainSchema,
+  stage: TransactionStageSchema,
+  status: TransactionStatusSchema,
+  createdAt: z.date().default(() => new Date()),
+  createdBy: z.string().min(1),
+  updatedAt: z.date().default(() => new Date()),
+  updatedBy: z.string().min(1),
+  version: z.number().int().positive().default(1),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+// ============================================================================
+// 2. NORMALIZED TRANSPORT MODEL (INDEPENDENT DIMENSIONS)
+// ============================================================================
+
+export const TransportModeSchema = z.enum([
+  'CAR',
+  'TWO_WHEELER',
+  'BUS',
+  'TRAIN',
+  'FLIGHT',
+  'TAXI_CAB',
+  'AUTO_RICKSHAW',
+  'VAN',
+  'TRUCK',
+  'WALKING',
+  'OTHER',
+]);
+
+export const OwnershipTypeSchema = z.enum([
+  'PERSONAL',
+  'COMPANY',
+  'HIRED',
+  'PUBLIC',
+  'SUPPLIER',
+  'TRANSPORTER',
+  'CUSTOMER',
+  'THIRD_PARTY_LOGISTICS',
+  'OTHER',
+]);
+
+export const VehicleClassSchema = z.enum([
+  'HATCHBACK',
+  'SEDAN',
+  'SUV',
+  'TWO_WHEELER',
+  'MINI_BUS',
+  'COACH_BUS',
+  'LIGHT_COMMERCIAL_VAN',
+  'MEDIUM_DUTY_TRUCK',
+  'HEAVY_DUTY_TRUCK',
+  'TRAILER',
+  'CONTAINER_CARRIER',
+  'OTHER',
+]);
+
+export const FuelTypeSchema = z.enum([
+  'PETROL',
+  'DIESEL',
+  'CNG',
+  'ELECTRIC',
+  'HYBRID_PETROL',
+  'HYBRID_DIESEL',
+  'HYDROGEN',
+  'OTHER',
+]);
+
+export const UsageTypeSchema = z.enum([
+  'INDIVIDUAL',
+  'SHARED',
+  'CARPOOL',
+  'COMPANY_POOL',
+  'PUBLIC_COMMUTE',
+  'OTHER',
+]);
+
+export const JourneyTypeSchema = z.enum([
+  'ONE_WAY',
+  'ROUND_TRIP',
+  'MULTI_STOP',
+  'LOCAL_CAMPUS',
+]);
+
+export const TripDirectionSchema = z.enum([
+  'INBOUND',
+  'OUTBOUND',
+  'INTERNAL_TRANSFER',
+]);
+
+export const MeasurementMethodSchema = z.enum([
+  'ODOMETER',
+  'TELEMATICS_GPS',
+  'GIS_ROUTING',
+  'WEIGHBRIDGE_SCALE',
+  'DECLARED_MANIFEST',
+  'ESTIMATED_TABLE',
+]);
+
+export const DataProvenanceSchema = z.enum([
+  'MEASURED',
+  'USER_PROVIDED',
+  'SYSTEM_ESTIMATED',
+  'SYSTEM_CALCULATED',
+  'IMPORTED',
+]);
+
+export const NormalizedTransportActivitySchema = z.object({
+  transportId: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  sourceDomain: SourceDomainSchema,
+  sourceTransactionId: z.string().min(1),
+  mode: TransportModeSchema,
+  ownership: OwnershipTypeSchema,
+  vehicleClass: VehicleClassSchema,
+  fuelType: FuelTypeSchema,
+  usageType: UsageTypeSchema,
+  occupancy: z.number().int().min(1, 'Occupancy must be at least 1 person'),
+  originLocation: z.string().min(2, 'Origin location is required'),
+  destinationLocation: z.string().min(2, 'Destination location is required'),
+  distanceKm: z.number().min(0, 'Distance cannot be negative'),
+  journeyType: JourneyTypeSchema.default('ONE_WAY'),
+  tripDirection: TripDirectionSchema.default('INBOUND'),
+  fuelConsumedLitres: z.number().positive().optional(),
+  payloadWeightTonnes: z.number().positive().optional(),
+  distanceProvenance: DataProvenanceSchema.default('USER_PROVIDED'),
+  measurementMethod: MeasurementMethodSchema.default('GIS_ROUTING'),
+  dataSource: z.string().default('WEB_FORM'),
+  createdAt: z.date().default(() => new Date()),
+});
+
+// ============================================================================
+// 3. ESG ACTIVITY & GHG FACTOR VALIDATION
+// ============================================================================
+
+export const ESGActivityTypeSchema = z.enum([
+  'COMMUTER_TRAVEL',
+  'BUSINESS_TRAVEL',
+  'UPSTREAM_LOGISTICS',
+  'DOWNSTREAM_LOGISTICS',
+  'FLEET_FUEL',
+  'ON_SITE_EQUIPMENT',
+]);
+
+export const AccountingScopeMappingSchema = z.object({
+  scope: z.enum(['SCOPE_1', 'SCOPE_2', 'SCOPE_3']),
+  category: z.string().min(1),
+  subcategory: z.string().min(1),
+  methodology: z.string().min(1),
+});
+
+export const ScopeMappingRuleSchema = z.object({
+  ruleId: z.string().min(1),
+  tenantId: z.string().uuid().optional(),
+  sourceDomain: SourceDomainSchema,
+  ownership: OwnershipTypeSchema.optional(),
+  tripDirection: TripDirectionSchema.optional(),
+  activityType: ESGActivityTypeSchema.optional(),
+  scope: z.enum(['SCOPE_1', 'SCOPE_2', 'SCOPE_3']),
+  category: z.string().min(1),
+  subcategory: z.string().min(1),
+  methodology: z.string().min(1),
+  priority: z.number().int().default(100),
+  isActive: z.boolean().default(true),
+});
+
+export const ESGActivityRecordSchema = z.object({
+  esgActivityId: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  siteId: z.string().uuid(),
+  sourceDomain: SourceDomainSchema,
+  sourceTransactionId: z.string().min(1),
+  transportId: z.string().uuid().optional(),
+  activityType: ESGActivityTypeSchema,
+  activityQuantity: z.number().positive('Activity quantity must be positive'),
+  activityUnit: z.enum(['KM', 'LITRES', 'TONNE_KM', 'KWH']),
+  dataProvenance: DataProvenanceSchema,
+  createdAt: z.date().default(() => new Date()),
+});
+
+export const EmissionFactorSchema = z.object({
+  factorId: z.string().min(1),
+  factorCode: z.string().min(1),
+  version: z.string().min(1),
+  source: z.string().min(1),
+  factorValue: z.number().min(0, 'Factor value cannot be negative'),
+  unit: z.string().min(1),
+  geography: z.string().min(2),
+  reportingYear: z.number().int().min(2000).max(2100),
+  methodology: z.string().default('GHG_PROTOCOL'),
+  validFrom: z.string().datetime(),
+  validTo: z.string().datetime().nullable().optional(),
+  gasScope: z.enum(['CO2e', 'CO2', 'CH4', 'N2O']).default('CO2e'),
+  evidenceDocUrl: z.string().url().optional(),
+  status: z.enum(['ACTIVE', 'SUPERSEDED', 'DRAFT', 'REVOKED']).default('ACTIVE'),
+  tenantId: z.string().uuid().optional(),
+});
+
+export const GHGCalculationResultSchema = z.object({
+  calculationId: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  esgActivityId: z.string().uuid(),
+  factorId: z.string().min(1),
+  factorVersion: z.string().min(1),
+  ghgScope: z.enum(['SCOPE_1', 'SCOPE_2', 'SCOPE_3']),
+  ghgCategory: z.string().min(1),
+  subcategory: z.string().min(1),
+  methodology: z.string().min(1),
+  factorValueUsed: z.number().min(0),
+  activityQuantity: z.number().positive(),
+  emissionsKgCO2e: z.number().min(0),
+  calculationHash: z.string().min(16),
+  calculatedAt: z.date().default(() => new Date()),
+  status: z.enum(['FINAL', 'NEEDS_RECALCULATION', 'HISTORICAL_ARCHIVED']).default('FINAL'),
+});
+
+// ============================================================================
+// 4. DOMAIN PIPELINES VALIDATION
+// ============================================================================
+
+export const VisitorCategorySchema = z.enum([
+  'NEW_VISITOR',
+  'REPEATED_VISITOR',
+  'GROUP_VISITOR',
+  'VIP_VISITOR',
+  'AUDITOR',
+  'CONSULTANT',
+  'GOVERNMENT_OFFICIAL',
+  'INTERVIEW_CANDIDATE',
+  'OTHER',
+]);
+
+export const VisitorPurposeSchema = z.enum([
+  'MEETING',
+  'AUDIT',
+  'INSPECTION',
+  'TRAINING',
+  'INTERVIEW',
+  'CONSULTATION',
+  'SITE_VISIT',
+  'VENDOR_NEGOTIATION',
+  'OTHER',
+]);
+
+export const BookingModeSchema = z.enum([
+  'RESERVED',
+  'WALK_IN',
+  'RECURRING',
+  'GROUP',
+  'EMERGENCY',
+]);
+
+export const VisitorTransactionSchema = CommonTransactionEnvelopeSchema.extend({
+  sourceDomain: z.literal('VISITOR'),
+  visitorCategory: VisitorCategorySchema,
+  purpose: VisitorPurposeSchema,
+  bookingMode: BookingModeSchema.default('RESERVED'),
+  visitorName: z.string().min(2, 'Visitor name is required'),
+  visitorEmail: z.string().email().optional(),
+  visitorPhone: z.string().min(6).optional(),
+  governmentIdNumber: z.string().optional(),
+  governmentIdType: z.string().optional(),
+  governmentIdScanUrl: z.string().optional(),
+  facialBiometricTemplate: z.string().optional(),
+  hostUserId: z.string().min(1, 'Host user ID is required'),
+  scheduledStart: z.date(),
+  scheduledEnd: z.date(),
+  actualCheckIn: z.date().optional(),
+  actualCheckOut: z.date().optional(),
+  transport: NormalizedTransportActivitySchema.optional(),
+});
+
+export const CustomerVisitTypeSchema = z.enum([
+  'CUSTOMER_MEETING',
+  'CUSTOMER_AUDIT',
+  'CUSTOMER_INSPECTION',
+  'QUALITY_VISIT',
+  'TECHNICAL_VISIT',
+  'PLANT_VISIT',
+  'MANAGEMENT_VISIT',
+  'DELEGATION_VISIT',
+  'DELEGATION',
+  'PRODUCT_REVIEW',
+  'PROCESS_REVIEW',
+  'OTHER',
+]);
+
+export const CustomerVisitTypeCodeSchema = CustomerVisitTypeSchema;
+
+export const CustomerTransactionSchema = CommonTransactionEnvelopeSchema.extend({
+  sourceDomain: z.literal('CUSTOMER'),
+  customerAccountName: z.string().min(2, 'Customer account name is required'),
+  visitType: CustomerVisitTypeSchema,
+  delegationSize: z.number().int().min(1).default(1),
+  executiveHostId: z.string().min(1, 'Executive host ID is required'),
+  ndaSigned: z.boolean().default(false),
+  scheduledStart: z.date(),
+  scheduledEnd: z.date(),
+  transport: NormalizedTransportActivitySchema.optional(),
+});
+
+export const ContractorTransactionSchema = CommonTransactionEnvelopeSchema.extend({
+  sourceDomain: z.literal('CONTRACTOR'),
+  contractorCompanyName: z.string().min(2, 'Contractor company name is required'),
+  workOrderNumber: z.string().min(2, 'Work order number is required'),
+  authorizedWorkerCount: z.number().int().positive('Authorized worker count must be positive'),
+  safetyPermitRequired: z.boolean().default(false),
+  contractStartDate: z.date(),
+  contractEndDate: z.date(),
+  transport: NormalizedTransportActivitySchema.optional(),
+});
+
+export const ServiceRequestTypeSchema = z.enum([
+  'OEM_BREAKDOWN',
+  'PREVENTIVE_MAINTENANCE',
+  'CALIBRATION',
+  'INSTALLATION',
+  'EMERGENCY_REPAIR',
+]);
+
+export const ServiceTransactionSchema = CommonTransactionEnvelopeSchema.extend({
+  sourceDomain: z.literal('SERVICE'),
+  serviceRequestType: ServiceRequestTypeSchema,
+  equipmentTag: z.string().min(1, 'Equipment tag is required'),
+  targetZoneId: z.string().uuid(),
+  maintenanceLeadId: z.string().min(1, 'Maintenance lead ID is required'),
+  inwardToolsDeclared: z.boolean().default(false),
+  serviceCompleted: z.boolean().default(false),
+  transport: NormalizedTransportActivitySchema.optional(),
+});
+
+export const MaterialMovementTypeSchema = z.enum(['INWARD', 'OUTWARD']);
+
+export const MaterialClassificationSchema = z.enum([
+  'RETURNABLE',
+  'NON_RETURNABLE',
+  'SCRAP',
+  'SAMPLE',
+  'EQUIPMENT',
+  'SPARE',
+  'EMERGENCY',
+]);
+
+export const MaterialTransactionSchema = CommonTransactionEnvelopeSchema.extend({
+  sourceDomain: z.literal('MATERIAL'),
+  movementType: MaterialMovementTypeSchema,
+  classification: MaterialClassificationSchema,
+  deliveryChallanNumber: z.string().min(1, 'Delivery challan number is required'),
+  poReference: z.string().optional(),
+  transporterCompany: z.string().min(2, 'Transporter company is required'),
+  vehicleRegistration: z.string().min(2, 'Vehicle registration is required'),
+  grossWeightKg: z.number().positive().optional(),
+  tareWeightKg: z.number().positive().optional(),
+  netWeightKg: z.number().positive().optional(),
+  transport: NormalizedTransportActivitySchema.optional(),
+});
+
+export const VehicleTransactionSchema = CommonTransactionEnvelopeSchema.extend({
+  sourceDomain: z.literal('VEHICLE'),
+  registrationPlate: z.string().min(2, 'Registration plate is required'),
+  vehicleType: z.string().min(2, 'Vehicle type is required'),
+  driverName: z.string().min(2, 'Driver name is required'),
+  driverLicenseNumber: z.string().min(2, 'Driver license number is required'),
+  breathalyzerPassed: z.boolean().default(true),
+  entryOdometerKm: z.number().min(0).optional(),
+  exitOdometerKm: z.number().min(0).optional(),
+  transport: NormalizedTransportActivitySchema.optional(),
+});
+
+// ============================================================================
+// 10. PART 5: MASTER DATA, WORKFLOW & APPROVAL SCHEMAS
+// ============================================================================
+
+export const MasterRecordStatusSchema = z.enum(['DRAFT', 'ACTIVE', 'INACTIVE', 'ARCHIVED']);
+
+export const MasterRecordSchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  organizationId: z.string().min(1).optional(),
+  siteId: z.string().min(1).optional(),
+  category: z.string().min(1),
+  code: z.string().min(1).regex(/^[a-zA-Z0-9_\-\.]+$/, 'Code must be alphanumeric with underscores, dashes or dots'),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  parentRecordId: z.string().optional(),
+  status: MasterRecordStatusSchema.default('DRAFT'),
+  sortOrder: z.number().int().default(0),
+  effectiveFrom: z.date().default(() => new Date()),
+  effectiveUntil: z.date().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  version: z.number().int().positive().default(1),
+  createdBy: z.string().min(1),
+  createdAt: z.date().default(() => new Date()),
+  updatedBy: z.string().min(1),
+  updatedAt: z.date().default(() => new Date()),
+  isSensitive: z.boolean().optional(),
+  pendingApproval: z.boolean().optional(),
+});
+
+export const MasterRecordImportRowSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  category: z.string().min(1),
+  siteCode: z.string().optional(),
+  parentCode: z.string().optional(),
+  sortOrder: z.number().int().optional(),
+  effectiveFrom: z.string().optional(),
+  effectiveUntil: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const WorkflowDomainSchema = z.enum([
+  'VISITOR',
+  'CUSTOMER',
+  'CONTRACTOR',
+  'SERVICE',
+  'MATERIAL',
+  'VEHICLE',
+  'DOCUMENT',
+  'SAFETY',
+  'OTHER_APPROVED_DOMAIN',
+]);
+
+export const WorkflowLifecycleStatusSchema = z.enum([
+  'DRAFT',
+  'VALIDATED',
+  'PUBLISHED',
+  'RETIRED',
+]);
+
+export const WorkflowStageTypeSchema = z.enum([
+  'START',
+  'DATA_VALIDATION',
+  'APPROVAL',
+  'AUTOMATED_RULE_EVALUATION',
+  'DOCUMENT_VERIFICATION',
+  'IDENTITY_VERIFICATION',
+  'SAFETY_CHECK',
+  'ACCESS_DECISION',
+  'OPERATIONAL_TASK',
+  'NOTIFICATION',
+  'DELAY_WAIT',
+  'END',
+  'EXCEPTION_HANDLING',
+]);
+
+export const RuleOperatorSchema = z.enum([
+  'EQUALS',
+  'NOT_EQUALS',
+  'GREATER_THAN',
+  'LESS_THAN',
+  'IN',
+  'NOT_IN',
+  'CONTAINS',
+  'EXISTS',
+  'IS_VALID',
+  'IS_EXPIRED',
+]);
+
+export const WorkflowConditionSchema = z.object({
+  conditionId: z.string().min(1),
+  field: z.string().min(1),
+  operator: RuleOperatorSchema,
+  value: z.unknown(),
+  logicGroup: z.enum(['AND', 'OR']).optional(),
+});
+
+export const WorkflowTransitionSchema = z.object({
+  transitionId: z.string().min(1),
+  fromStageId: z.string().min(1),
+  toStageId: z.string().min(1),
+  trigger: z.string().min(1),
+  requiredPermission: z.string().optional(),
+  conditions: z.array(WorkflowConditionSchema).optional(),
+  reasonRequired: z.boolean().optional(),
+  resultStatus: z.string().optional(),
+});
+
+export const SlaConfigSchema = z.object({
+  slaMinutes: z.number().int().positive(),
+  warningMinutes: z.number().int().nonnegative(),
+  escalationTargetRole: z.string().optional(),
+  escalationTargetUserId: z.string().optional(),
+  escalationFrequencyMinutes: z.number().int().positive().optional(),
+  escalateToManager: z.boolean().optional(),
+  autoApproveOnExpiry: z.boolean().default(false),
+});
+
+export const ApprovalAssignmentRuleSchema = z.object({
+  approverType: z.enum([
+    'NAMED_USER',
+    'ROLE',
+    'DEPARTMENT',
+    'SITE_RESPONSIBILITY',
+    'HOST_SPONSOR',
+    'RESPONSIBLE_MANAGER',
+    'APPROVAL_GROUP',
+  ]),
+  targetRole: z.string().optional(),
+  targetUserId: z.string().optional(),
+  targetDepartmentCode: z.string().optional(),
+  allowSelfApproval: z.boolean().default(false),
+  delegationAllowed: z.boolean().default(true),
+});
+
+export const WorkflowStageSchema = z.object({
+  stageId: z.string().min(1),
+  stageCode: z.string().min(1),
+  stageName: z.string().min(1),
+  stageType: WorkflowStageTypeSchema,
+  orderIndex: z.number().int().nonnegative(),
+  slaConfig: SlaConfigSchema.optional(),
+  approvalPolicy: z.enum([
+    'SINGLE',
+    'SEQUENTIAL',
+    'PARALLEL_ALL_REQUIRED',
+    'PARALLEL_ANY_ONE',
+    'PARALLEL_QUORUM',
+  ]).optional(),
+  assignmentRules: z.array(ApprovalAssignmentRuleSchema).optional(),
+  quorumRequired: z.number().int().positive().optional(),
+  notificationTemplateId: z.string().optional(),
+  requiredInputs: z.array(z.string()).optional(),
+  isMandatory: z.boolean().default(true),
+});
+
+export const WorkflowDefinitionSchema = z.object({
+  definitionId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  siteId: z.string().uuid().optional(),
+  domain: WorkflowDomainSchema,
+  code: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().default(''),
+  isCurrent: z.boolean().default(true),
+  ownerId: z.string().min(1),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const WorkflowVersionSchema = z.object({
+  versionId: z.string().min(1),
+  definitionId: z.string().min(1),
+  versionNumber: z.number().int().positive(),
+  status: WorkflowLifecycleStatusSchema.default('DRAFT'),
+  effectiveFrom: z.date().default(() => new Date()),
+  effectiveTo: z.date().optional(),
+  stages: z.array(WorkflowStageSchema).min(2, 'Workflow must contain at least a START and END stage'),
+  transitions: z.array(WorkflowTransitionSchema).min(1, 'Workflow must contain at least one transition'),
+  publishedBy: z.string().optional(),
+  publishedAt: z.date().optional(),
+  immutable: z.boolean().default(false),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const ApprovalDecisionSchema = z.enum([
+  'APPROVED',
+  'REJECTED',
+  'CHANGES_REQUESTED',
+  'DELEGATED',
+]);
+
+export const ApprovalActionInputSchema = z.object({
+  taskId: z.string().min(1),
+  decision: ApprovalDecisionSchema,
+  remarks: z.string().optional(),
+  delegationId: z.string().optional(),
+  changesRequiredDetails: z.string().optional(),
+});
+
+export const ApprovalDelegationSchema = z.object({
+  delegationId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  delegatorUserId: z.string().min(1),
+  delegateUserId: z.string().min(1),
+  domainScope: WorkflowDomainSchema.optional(),
+  siteScopeId: z.string().uuid().optional(),
+  stageScopeId: z.string().optional(),
+  validFrom: z.date(),
+  validTo: z.date(),
+  reason: z.string().optional(),
+  status: z.enum(['ACTIVE', 'REVOKED', 'EXPIRED']).default('ACTIVE'),
+  createdAt: z.date().default(() => new Date()),
+});
+
+export const PolicyRuleSchema = z.object({
+  ruleId: z.string().min(1),
+  policyId: z.string().min(1),
+  ruleCode: z.string().min(1),
+  name: z.string().min(1),
+  priority: z.number().int().default(100),
+  conditions: z.array(z.object({
+    field: z.string().min(1),
+    operator: RuleOperatorSchema,
+    value: z.unknown(),
+    logic: z.enum(['AND', 'OR']).optional(),
+  })),
+  action: z.enum(['ALLOW', 'DENY', 'REQUIRE_APPROVAL', 'REQUIRE_DOCUMENT', 'ESCALATE']),
+  actionPayload: z.record(z.string(), z.unknown()).optional(),
+});
+
+// ============================================================================
+// 15. CUSTOMER DOMAIN SCHEMAS (PART 7)
+// ============================================================================
+
+export const CustomerClassificationSchema = z.enum([
+  'EXISTING_CUSTOMER',
+  'PROSPECTIVE_CUSTOMER',
+  'STRATEGIC_CUSTOMER',
+  'OEM_CUSTOMER',
+  'QUALITY_CUSTOMER',
+  'TECHNICAL_CUSTOMER',
+  'OTHER',
+]);
+
+export const CustomerAccountTierSchema = z.enum([
+  'STANDARD',
+  'TIER_1_STRATEGIC',
+  'OEM',
+  'KEY_ACCOUNT',
+  'GLOBAL_ENTERPRISE',
+]);
+
+export const CustomerAccountStatusSchema = z.enum([
+  'DRAFT',
+  'ACTIVE',
+  'INACTIVE',
+  'SUSPENDED',
+  'ARCHIVED',
+]);
+
+export const CustomerBookingModeSchema = z.enum([
+  'RESERVED',
+  'WALK_IN',
+  'DELEGATION',
+  'RECURRING',
+]);
+
+export const CustomerPhotographyPolicySchema = z.enum([
+  'PROHIBITED',
+  'RESTRICTED',
+  'PERMITTED',
+]);
+
+export const CustomerAccountSchema = z.object({
+  customerAccountId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  externalOrgId: z.string().uuid(),
+  accountCode: z.string().min(1),
+  accountName: z.string().min(1),
+  classification: CustomerClassificationSchema.default('EXISTING_CUSTOMER'),
+  tier: CustomerAccountTierSchema.default('STANDARD'),
+  status: CustomerAccountStatusSchema.default('ACTIVE'),
+  registrationNumber: z.string().optional(),
+  primaryContactPersonId: z.string().uuid().optional(),
+  commercialOwnerUserId: z.string().uuid().optional(),
+  approvedSiteIds: z.array(z.string().uuid()).optional(),
+  defaultVisitRequirements: z.array(z.string()).optional(),
+  defaultNdaRequired: z.boolean().default(true),
+  defaultPhotographyPolicy: CustomerPhotographyPolicySchema.default('RESTRICTED'),
+  defaultEscortRequired: z.boolean().default(true),
+  defaultAccessRequirements: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const CustomerRepresentativeSchema = z.object({
+  repId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  customerAccountId: z.string().min(1),
+  personId: z.string().uuid(),
+  jobTitle: z.string().optional(),
+  department: z.string().optional(),
+  isPrimary: z.boolean().default(false),
+  identityVerificationStatus: z.enum(['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED']).default('VERIFIED'),
+  profileStatus: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
+  preferredContactChannel: z.enum(['EMAIL', 'PHONE', 'SMS']).optional(),
+  notes: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const CustomerVisitTypeEntitySchema = z.object({
+  visitTypeId: z.string().min(1),
+  tenantId: z.string().uuid().optional(),
+  code: CustomerVisitTypeCodeSchema,
+  name: z.string().min(1),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+export const CustomerRequirementSchema = z.object({
+  requirementId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  customerVisitId: z.string().min(1),
+  requirementType: z.enum([
+    'NDA',
+    'SAFETY_INDUCTION',
+    'PPE',
+    'ESCORT',
+    'QUALITY_REP',
+    'TECHNICAL_REP',
+    'PHOTO_RESTRICTION',
+    'RESTRICTED_AREA',
+    'CONFIDENTIALITY',
+  ]),
+  description: z.string().min(1),
+  isMandatory: z.boolean().default(true),
+  isFulfilled: z.boolean().default(false),
+  fulfilledAt: z.date().optional(),
+  scope: z.enum(['GLOBAL', 'SITE', 'CUSTOMER_ACCOUNT', 'VISIT_TYPE', 'VISIT_EXCEPTION']).default('VISIT_TYPE'),
+  createdAt: z.date().default(() => new Date()),
+});
+
+export const CustomerVisitClosureSchema = z.object({
+  completed: z.boolean(),
+  actualStart: z.date().optional(),
+  actualEnd: z.date().optional(),
+  followUpRequired: z.boolean().default(false),
+  notes: z.string().default(''),
+  evidenceDocumentRefs: z.array(z.string()).optional(),
+  closedBy: z.string().min(1),
+  closedAt: z.date().default(() => new Date()),
+});
+
+export const CustomerAuditDetailsSchema = z.object({
+  auditType: z.enum([
+    'QUALITY_AUDIT',
+    'PROCESS_AUDIT',
+    'PRODUCT_AUDIT',
+    'SYSTEM_AUDIT',
+    'COMPLIANCE_AUDIT',
+    'SUPPLIER_ASSESSMENT',
+    'OTHER',
+  ]),
+  auditScope: z.string().min(1),
+  auditReference: z.string().optional(),
+  auditingOrganization: z.string().optional(),
+  leadAuditorPersonId: z.string().optional(),
+  leadAuditorName: z.string().optional(),
+  additionalAuditorIds: z.array(z.string()).optional(),
+  departmentsInvolved: z.array(z.string()).optional(),
+  closureSummary: CustomerVisitClosureSchema.optional(),
+});
+
+export const CustomerInspectionDetailsSchema = z.object({
+  inspectionCategory: z.enum([
+    'PRODUCT_INSPECTION',
+    'PROCESS_INSPECTION',
+    'PRE_DISPATCH',
+    'TOOLING',
+    'FIRST_ARTICLE',
+    'OTHER',
+  ]),
+  inspectionScope: z.string().min(1),
+  productProcessReference: z.string().optional(),
+  leadInspectorPersonId: z.string().optional(),
+  leadInspectorName: z.string().optional(),
+  requiredQualityRepId: z.string().optional(),
+  productionAreaRequirements: z.string().optional(),
+  closureSummary: CustomerVisitClosureSchema.optional(),
+});
+
+export const CustomerVisitTransactionSchema = z.object({
+  transactionId: z.string().min(1),
+  referenceNumber: z.string().regex(/^CUS-\d{4}-\d{6}$/),
+  tenantId: z.string().uuid(),
+  siteId: z.string().uuid(),
+  customerAccountId: z.string().min(1),
+  visitTypeId: z.string().optional(),
+  visitTypeCode: CustomerVisitTypeCodeSchema,
+  title: z.string().min(3),
+  purpose: z.string().optional(),
+  description: z.string().optional(),
+  department: z.string().optional(),
+  hostUserId: z.string().min(1),
+  relationshipOwnerUserId: z.string().optional(),
+  bookingMode: CustomerBookingModeSchema.default('RESERVED'),
+  scheduledStart: z.date(),
+  scheduledEnd: z.date(),
+  actualArrival: z.date().optional(),
+  actualEntry: z.date().optional(),
+  actualExit: z.date().optional(),
+  stage: TransactionStageSchema.default('DRAFT'),
+  status: TransactionStatusSchema.default('PENDING'),
+  version: z.number().int().positive().default(1),
+  workflowInstanceId: z.string().optional(),
+  approvalState: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']).default('DRAFT'),
+  ndaSigned: z.boolean().default(false),
+  ndaDocumentRef: z.string().optional(),
+  photographyPolicy: CustomerPhotographyPolicySchema.default('RESTRICTED'),
+  escortRequired: z.boolean().default(true),
+  accessRequirement: z.string().optional(),
+  transportActivityId: z.string().optional(),
+  ghgActivityId: z.string().optional(),
+  auditDetails: CustomerAuditDetailsSchema.optional(),
+  inspectionDetails: CustomerInspectionDetailsSchema.optional(),
+  closureSummary: CustomerVisitClosureSchema.optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  createdBy: z.string().min(1),
+  updatedBy: z.string().min(1),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const CustomerVisitParticipantSchema = z.object({
+  participantId: z.string().min(1),
+  customerVisitId: z.string().min(1),
+  personId: z.string().uuid(),
+  customerRepId: z.string().optional(),
+  fullName: z.string().min(1),
+  designation: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  isLead: z.boolean().default(false),
+  identityStatus: z.enum(['PENDING', 'VERIFIED', 'FAILED']).default('PENDING'),
+  presenceStatus: z.enum(['EXPECTED', 'ARRIVED', 'CHECKED_IN', 'DEPARTED', 'NO_SHOW']).default('EXPECTED'),
+  actualArrival: z.date().optional(),
+  actualEntry: z.date().optional(),
+  actualExit: z.date().optional(),
+  transportMode: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+});
+
+// ============================================================================
+// 16. CONTRACTOR DOMAIN SCHEMAS (PART 8)
+// ============================================================================
+
+export const ContractorCompanyStatusSchema = z.enum([
+  'DRAFT',
+  'PENDING_VERIFICATION',
+  'ACTIVE',
+  'SUSPENDED',
+  'INACTIVE',
+  'ARCHIVED',
+]);
+
+export const ContractorSafetyRatingSchema = z.enum([
+  'GRADE_A',
+  'GRADE_B',
+  'GRADE_C',
+  'PROBATION',
+  'BLACKLISTED',
+]);
+
+export const ContractorClassificationSchema = z.enum([
+  'GENERAL_CONTRACTOR',
+  'ELECTRICAL',
+  'MECHANICAL',
+  'CIVIL',
+  'LOGISTICS',
+  'SECURITY',
+  'FACILITY_MANAGEMENT',
+  'SPECIALIZED',
+]);
+
+export const ContractorCompanySchema = z.object({
+  companyId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  externalOrgId: z.string().uuid(),
+  companyName: z.string().min(1),
+  tradeName: z.string().optional(),
+  vendorCode: z.string().min(1),
+  safetyRating: ContractorSafetyRatingSchema.default('GRADE_A'),
+  status: ContractorCompanyStatusSchema.default('ACTIVE'),
+  contractorClassification: ContractorClassificationSchema.default('GENERAL_CONTRACTOR'),
+  responsibleInternalManagerId: z.string().uuid().optional(),
+  primaryContactName: z.string().optional(),
+  primaryContactPhone: z.string().optional(),
+  primaryContactEmail: z.string().email().optional(),
+  siteContactName: z.string().optional(),
+  approvedSiteIds: z.array(z.string().uuid()).optional(),
+  insurancePolicyNumber: z.string().optional(),
+  insuranceExpiryDate: z.date().optional(),
+  notes: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const ContractTypeSchema = z.enum([
+  'MASTER_SERVICES_AGREEMENT',
+  'ANNUAL_MAINTENANCE',
+  'PROJECT_BASED',
+  'LABOR_SUPPLY',
+  'EMERGENCY_REPAIR',
+]);
+
+export const ContractStatusSchema = z.enum([
+  'DRAFT',
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'ACTIVE',
+  'EXPIRING',
+  'EXPIRED',
+  'SUSPENDED',
+  'TERMINATED',
+  'CLOSED',
+]);
+
+export const ContractorContractSchema = z.object({
+  contractId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  companyId: z.string().min(1),
+  contractNumber: z.string().min(1),
+  title: z.string().min(1),
+  contractType: ContractTypeSchema.default('MASTER_SERVICES_AGREEMENT'),
+  contractOwnerUserId: z.string().uuid().optional(),
+  startDate: z.date(),
+  endDate: z.date(),
+  status: ContractStatusSchema.default('ACTIVE'),
+  scopeOfWork: z.string().optional(),
+  authorizedSiteIds: z.array(z.string().uuid()).optional(),
+  applicableDepartments: z.array(z.string()).optional(),
+  requiredInsurance: z.string().optional(),
+  requiredQualifications: z.array(z.string()).optional(),
+  requiredComplianceDocuments: z.array(z.string()).optional(),
+  authorizedWorkCategories: z.array(z.string()).optional(),
+  approvalState: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']).default('APPROVED'),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const WorkOrderCategorySchema = z.enum([
+  'ELECTRICAL',
+  'MECHANICAL',
+  'CIVIL',
+  'HVAC',
+  'PLUMBING',
+  'PAINTING',
+  'HOUSEKEEPING',
+  'FABRICATION',
+  'SCAFFOLDING',
+  'RIGGING',
+  'GENERAL',
+]);
+
+export const WorkOrderStatusSchema = z.enum([
+  'DRAFT',
+  'SUBMITTED',
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'SCHEDULED',
+  'ACTIVE',
+  'ON_HOLD',
+  'COMPLETED',
+  'CANCELLED',
+  'EXPIRED',
+]);
+
+export const ContractorWorkOrderSchema = z.object({
+  workOrderId: z.string().min(1),
+  referenceNumber: z.string().regex(/^CTR-\d{4}-\d{6}$/),
+  tenantId: z.string().uuid(),
+  siteId: z.string().uuid(),
+  contractId: z.string().min(1),
+  companyId: z.string().min(1),
+  workOrderNumber: z.string().min(1),
+  title: z.string().min(1),
+  scopeOfWork: z.string().min(1),
+  workCategory: WorkOrderCategorySchema.default('GENERAL'),
+  responsibleInternalManagerId: z.string().uuid().optional(),
+  workLocation: z.string().optional(),
+  targetZoneId: z.string().uuid().optional(),
+  startDate: z.date(),
+  endDate: z.date(),
+  authorizedWorkerCount: z.number().int().positive().default(1),
+  safetyPermitRequired: z.boolean().default(false),
+  requiredQualifications: z.array(z.string()).optional(),
+  requiredDocuments: z.array(z.string()).optional(),
+  requiredTraining: z.array(z.string()).optional(),
+  permitRequirements: z.array(z.string()).optional(),
+  stage: TransactionStageSchema.default('DRAFT'),
+  status: WorkOrderStatusSchema.default('PENDING_APPROVAL'),
+  version: z.number().int().positive().default(1),
+  approvalState: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']).default('DRAFT'),
+  transportActivityId: z.string().optional(),
+  ghgActivityId: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const ContractorWorkerCategorySchema = z.enum([
+  'SKILLED',
+  'SEMI_SKILLED',
+  'UNSKILLED',
+  'SUPERVISOR',
+  'ENGINEER',
+  'SAFETY_STEWARD',
+]);
+
+export const ContractorWorkerStatusSchema = z.enum([
+  'DRAFT',
+  'ACTIVE',
+  'SUSPENDED',
+  'INACTIVE',
+  'RESTRICTED',
+]);
+
+export const ContractorWorkerProfileSchema = z.object({
+  contractorWorkerId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  companyId: z.string().min(1),
+  personId: z.string().uuid(),
+  fullName: z.string().min(1),
+  badgeNumber: z.string().min(1),
+  tradeSkill: z.string().min(1),
+  workerCategory: ContractorWorkerCategorySchema.default('SKILLED'),
+  designation: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional(),
+  medicalFitnessValid: z.boolean().default(true),
+  medicalFitnessExpiry: z.date().optional(),
+  status: ContractorWorkerStatusSchema.default('ACTIVE'),
+  notes: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const ContractorAssignmentStatusSchema = z.enum([
+  'ACTIVE',
+  'COMPLETED',
+  'SUSPENDED',
+  'CANCELLED',
+]);
+
+export const WorkerEligibilityStatusSchema = z.enum([
+  'ELIGIBLE',
+  'INELIGIBLE',
+  'PENDING_REVIEW',
+]);
+
+export const ContractorWorkerAssignmentSchema = z.object({
+  assignmentId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  workOrderId: z.string().min(1),
+  contractorWorkerId: z.string().min(1),
+  siteId: z.string().uuid().optional(),
+  workLocation: z.string().optional(),
+  assignedFrom: z.date(),
+  assignedTo: z.date(),
+  shiftPattern: z.enum(['DAY_SHIFT', 'NIGHT_SHIFT', 'GENERAL_SHIFT', 'ROTATIONAL']).default('GENERAL_SHIFT'),
+  status: ContractorAssignmentStatusSchema.default('ACTIVE'),
+  eligibilityStatus: WorkerEligibilityStatusSchema.default('ELIGIBLE'),
+  eligibilityReasons: z.array(z.string()).optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+export const ComplianceRequirementTypeSchema = z.enum([
+  'IDENTITY_VERIFICATION',
+  'TRADE_LICENSE',
+  'QUALIFICATION_CERTIFICATE',
+  'SAFETY_INDUCTION',
+  'EHS_TRAINING',
+  'MEDICAL_FITNESS',
+  'PERMIT_PREREQUISITE',
+  'INSURANCE_CERTIFICATE',
+  'POLICE_CLEARANCE',
+]);
+
+export const ComplianceStatusSchema = z.enum([
+  'NOT_REQUIRED',
+  'REQUIRED',
+  'MISSING',
+  'PENDING_VERIFICATION',
+  'VALID',
+  'EXPIRING_SOON',
+  'EXPIRED',
+  'REJECTED',
+  'EXCEPTION_PENDING',
+  'EXCEPTION_APPROVED',
+]);
+
+export const ContractorComplianceRecordSchema = z.object({
+  recordId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  workerId: z.string().optional(),
+  companyId: z.string().optional(),
+  contractId: z.string().optional(),
+  workOrderId: z.string().optional(),
+  requirementType: ComplianceRequirementTypeSchema,
+  name: z.string().min(1),
+  status: ComplianceStatusSchema.default('REQUIRED'),
+  documentRef: z.string().optional(),
+  validFrom: z.date().optional(),
+  validTo: z.date().optional(),
+  verifiedBy: z.string().optional(),
+  verifiedAt: z.date().optional(),
+  rejectionReason: z.string().optional(),
+  notes: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+});
+
+export const ContractorQualificationSchema = z.object({
+  qualificationId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  workerId: z.string().min(1),
+  qualificationName: z.string().min(1),
+  qualificationCode: z.string().optional(),
+  issuingBody: z.string().optional(),
+  issueDate: z.date(),
+  expiryDate: z.date().optional(),
+  verificationStatus: z.enum(['PENDING', 'VALID', 'EXPIRED', 'REJECTED']).default('VALID'),
+  certificateRef: z.string().optional(),
+  verifiedBy: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+});
+
+export const ContractorPresenceStatusSchema = z.enum([
+  'EXPECTED',
+  'REGISTERED',
+  'AUTHORIZED',
+  'CHECKED_IN',
+  'CHECKED_OUT',
+  'PRESENT',
+  'OVERSTAY',
+  'ABSENT',
+]);
+
+export const ContractorAttendanceRecordSchema = z.object({
+  attendanceId: z.string().min(1),
+  tenantId: z.string().uuid(),
+  siteId: z.string().uuid(),
+  gateId: z.string().uuid().optional(),
+  workOrderId: z.string().min(1),
+  contractorWorkerId: z.string().min(1),
+  assignmentId: z.string().optional(),
+  shiftDate: z.date(),
+  entryTime: z.date().optional(),
+  exitTime: z.date().optional(),
+  hoursWorked: z.number().optional(),
+  presenceStatus: ContractorPresenceStatusSchema.default('CHECKED_IN'),
+  sourceDeviceId: z.string().optional(),
+  operatorUserId: z.string().optional(),
+  transportActivityId: z.string().optional(),
+  ghgActivityId: z.string().optional(),
+  isManualCorrection: z.boolean().default(false),
+  originalEventRef: z.string().optional(),
+  correctionReason: z.string().optional(),
+  createdAt: z.date().default(() => new Date()),
+  updatedAt: z.date().default(() => new Date()),
+});
+
+

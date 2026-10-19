@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "declaration": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@vms/types": ["./packages/types/src/index.ts"],
+      "@vms/validation": ["./packages/validation/src/index.ts"],
+      "@vms/permissions": ["./packages/permissions/src/index.ts"],
+      "@vms/events": ["./packages/events/src/index.ts"],
+      "@vms/ui/tokens": ["./packages/ui/tokens/index.ts"],
+      "@vms/ui": ["./packages/ui/src/index.ts"],
+      "@vms/transport": ["./services/transport/src/index.ts"],
+      "@vms/ghg": ["./services/ghg/src/index.ts"],
+      "@vms/database": ["./packages/database/src/index.ts"],
+      "@vms/config": ["./packages/config/src/index.ts"],
+      "@vms/identity": ["./services/identity/src/index.ts"],
+      "@vms/access": ["./services/access/src/index.ts"],
+      "@vms/document": ["./services/document/src/index.ts"],
+      "@vms/workflow": ["./services/workflow/src/index.ts"],
+      "@vms/visitor": ["./services/visitor/src/index.ts"],
+      "@vms/customer": ["./services/customer/src/index.ts"],
+      "@vms/contractor": ["./services/contractor/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/**/*",
+    "services/**/*",
+    "tests/**/*",
+    "apps/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

@@ -1,0 +1,123 @@
+import type { SiteContextOption } from '@vms/ui';
+import type { NotificationItem } from '@vms/ui';
+import type { OccupancyStats } from '@vms/ui';
+import type { TimelineEventItem } from '@vms/ui';
+export declare const DEMO_SITES: SiteContextOption[];
+export declare const DEMO_OCCUPANCY: OccupancyStats;
+export declare const DEMO_NOTIFICATIONS: NotificationItem[];
+export declare const DEMO_VISITORS: {
+    id: string;
+    name: string;
+    company: string;
+    purpose: string;
+    host: string;
+    time: string;
+    status: string;
+    gate: string;
+    transportMode: string;
+    distanceKm: number;
+    provenance: string;
+}[];
+export declare const DEMO_CONTRACTORS: {
+    id: string;
+    company: string;
+    workOrder: string;
+    workersCount: number;
+    activeInside: number;
+    inductionStatus: string;
+    ptwStatus: string;
+    status: string;
+}[];
+export declare const DEMO_MATERIALS: {
+    id: string;
+    challan: string;
+    type: string;
+    classification: string;
+    supplier: string;
+    item: string;
+    grossWeight: string;
+    netWeight: string;
+    status: string;
+}[];
+export declare const DEMO_VEHICLES: {
+    id: string;
+    plate: string;
+    class: string;
+    driver: string;
+    transporter: string;
+    gateStatus: string;
+    compliance: string;
+    fuel: string;
+    status: string;
+}[];
+export declare const DEMO_CUSTOMERS: {
+    id: string;
+    account: string;
+    agenda: string;
+    host: string;
+    lead: string;
+    delegationSize: number;
+    ndaStatus: string;
+    status: string;
+}[];
+export declare const DEMO_SERVICES: {
+    id: string;
+    serviceType: string;
+    equipment: string;
+    technician: string;
+    vendor: string;
+    permitRequired: string;
+    hazardRating: string;
+    status: string;
+}[];
+export declare const DEMO_ACCESS_POINTS: {
+    id: string;
+    zone: string;
+    gate: string;
+    type: string;
+    activeCount: number;
+    status: string;
+}[];
+export declare const DEMO_DOCUMENTS: {
+    id: string;
+    name: string;
+    owner: string;
+    type: string;
+    verification: string;
+    expiry: string;
+    status: string;
+}[];
+export declare const DEMO_SAFETY: ({
+    id: string;
+    inductionType: string;
+    completedToday: number;
+    passingScore: string;
+    validityMonths: number;
+    status: string;
+    permitType?: undefined;
+    authorizedBy?: undefined;
+    activePermits?: undefined;
+} | {
+    inductionType?: undefined;
+    completedToday?: undefined;
+    passingScore?: undefined;
+    validityMonths?: undefined;
+    id: string;
+    permitType: string;
+    authorizedBy: string;
+    activePermits: number;
+    status: string;
+})[];
+export declare const DEMO_TIMELINE_EVENTS: TimelineEventItem[];
+export declare const DEMO_ESG_RECORDS: {
+    id: string;
+    domain: string;
+    sourceId: string;
+    mode: string;
+    distance: string;
+    occupancy: string;
+    provenance: string;
+    esgStatus: string;
+    scope: string;
+    status: string;
+}[];

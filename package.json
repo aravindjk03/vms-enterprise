@@ -1,0 +1,43 @@
+{
+  "name": "vms-enterprise",
+  "version": "1.0.0",
+  "description": "VMS Enterprise Architecture and Foundation",
+  "main": "packages/types/src/index.ts",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "dev": "vite",
+    "build:web": "vite build",
+    "build": "tsc"
+  },
+  "keywords": [
+    "vms",
+    "visitor-management",
+    "contractor-management",
+    "material-management",
+    "esg",
+    "ghg"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@types/node": "^26.6.4",
+    "lucide-react": "^1.52.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "^8.3.3"
+  }
+}
