@@ -23,6 +23,7 @@ export default defineConfig({
       '@vms/workflow': path.resolve(__dirname, 'services/workflow/src/index.ts'),
       '@vms/visitor': path.resolve(__dirname, 'services/visitor/src/index.ts'),
       '@vms/customer': path.resolve(__dirname, 'services/customer/src/index.ts'),
+      '@vms/contractor': path.resolve(__dirname, 'services/contractor/src/index.ts'),
     },
   },
   server: {
