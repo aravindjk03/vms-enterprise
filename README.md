@@ -148,8 +148,17 @@ npm run typecheck
 
 ### Production Build
 ```bash
-npm run build:web
+npm run build      # typecheck + production bundle into dist/
+npm run preview    # serve the production bundle on http://localhost:3000
 ```
+
+> Do not run `tsc` without `--noEmit`: it writes `.js` files next to the `.ts` sources, and Vite resolves
+> `./App.js` imports to those stale files instead of the TypeScript source. They are git-ignored.
+
+### Deployment (GitHub Pages)
+`.github/workflows/deploy.yml` typechecks, tests and builds on every push and PR, and deploys `dist/`
+to GitHub Pages on pushes to `main`. One-time setup: **Settings → Pages → Source: GitHub Actions**.
+The build uses relative asset paths, so `dist/` can also be dropped onto any static host (Netlify, Vercel, S3, Nginx).
 
 ---
 

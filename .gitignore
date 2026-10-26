@@ -45,3 +45,13 @@ coverage/
 .cache/
 .vite/
 .turbo/
+
+# Compiled TypeScript emitted next to sources (Vite would serve these stale files instead of .ts/.tsx)
+apps/**/*.js
+apps/**/*.d.ts
+packages/**/*.js
+packages/**/*.d.ts
+services/**/*.js
+services/**/*.d.ts
+tests/**/*.js
+tests/**/*.d.ts
