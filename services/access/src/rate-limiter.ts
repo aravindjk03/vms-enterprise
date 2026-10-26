@@ -29,6 +29,18 @@ export class RateLimiter {
   }
 
   /**
+   * Drops buckets whose timestamps have all aged out, bounding memory for long-running servers.
+   */
+  public prune(now: number = Date.now()): void {
+    const longestWindow = Math.max(...Object.values(this.buckets).map(b => b.windowMs));
+    for (const [key, timestamps] of this.requests) {
+      if (timestamps.length === 0 || now - timestamps[timestamps.length - 1] >= longestWindow) {
+        this.requests.delete(key);
+      }
+    }
+  }
+
+  /**
    * Consumes one request token for a client identifier and category.
    * Returns whether the request is allowed or rate-limited.
    */

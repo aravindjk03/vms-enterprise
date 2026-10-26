@@ -19,7 +19,7 @@
 CREATE TABLE IF NOT EXISTS user_credentials (
     user_id UUID PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
     tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    password_hash TEXT NOT NULL,                 -- scrypt$N$r$p$salt$hash (never plaintext)
+    password_hash TEXT NOT NULL,                 -- pbkdf2:iterations:salt:hash (never plaintext)
     password_changed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
@@ -230,6 +230,11 @@ BEGIN
     ] LOOP
         EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON %I FROM vms_app', tbl);
     END LOOP;
+
+    -- The migration ledger is read-only for the runtime role (readiness checks only).
+    IF to_regclass('public.schema_migrations') IS NOT NULL THEN
+        REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations FROM vms_app;
+    END IF;
 
     GRANT EXECUTE ON FUNCTION auth_lookup_login(TEXT, TEXT) TO vms_app;
     GRANT EXECUTE ON FUNCTION auth_record_login_attempt(UUID, BOOLEAN, INTEGER, INTEGER) TO vms_app;
