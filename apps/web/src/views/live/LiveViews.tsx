@@ -327,6 +327,7 @@ const VISITOR_PAGE_SIZE = 50;
 interface GateOption {
   gateId: string;
   siteId: string;
+  siteName?: string;
   name: string;
   gateType: string;
   isActive: boolean;
@@ -364,15 +365,29 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
 
   useEffect(() => {
     if (!canGate) return;
-    apiRequest<{ items: GateOption[] }>('/api/v1/gates')
-      .then(r => {
-        // Only active gates can record movements; pedestrian gates first, as most visitors walk in.
-        const active = r.items.filter(g => g.isActive).sort((a, b) => Number(b.gateType === 'PEDESTRIAN') - Number(a.gateType === 'PEDESTRIAN'));
+    Promise.all([
+      apiRequest<{ items: GateOption[] }>('/api/v1/gates'),
+      apiRequest<{ items: Array<{ siteId: string; name: string }> }>('/api/v1/sites').catch(() => ({ items: [] })),
+    ])
+      .then(([g, sites]) => {
+        const siteName = new Map(sites.items.map(site => [site.siteId, site.name]));
+        // Only active gates can record movements. The user's default site comes first, then
+        // pedestrian gates, as most visitors walk in.
+        const home = user.defaultSiteId;
+        const active = g.items
+          .filter(gate => gate.isActive)
+          .map(gate => ({ ...gate, siteName: siteName.get(gate.siteId) }))
+          .sort(
+            (a, b) =>
+              Number(b.siteId === home) - Number(a.siteId === home) ||
+              (a.siteName ?? '').localeCompare(b.siteName ?? '') ||
+              Number(b.gateType === 'PEDESTRIAN') - Number(a.gateType === 'PEDESTRIAN')
+          );
         setGates(active);
         setGateId(current => current || active[0]?.gateId || '');
       })
       .catch(() => setGates([]));
-  }, [canGate]);
+  }, [canGate, user.defaultSiteId]);
 
   const act = async (visit: VisitorItem, action: 'approve' | 'reject' | 'cancel' | 'check-in' | 'check-out') => {
     setActionError(null);
@@ -459,11 +474,12 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
           </button>
         </form>
         {canGate && gates.length > 0 && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: colors.slate[600] }}>
-            Recording at gate
-            <select value={gateId} onChange={e => setGateId(e.target.value)} style={{ ...buttonStyle(), padding: '7px 10px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: colors.slate[600], flex: '1 1 260px', minWidth: 0 }}>
+            <span style={{ whiteSpace: 'nowrap' }}>Recording at gate</span>
+            <select value={gateId} onChange={e => setGateId(e.target.value)} style={{ ...buttonStyle(), padding: '7px 10px', flex: 1, minWidth: 0, maxWidth: '100%' }}>
               {gates.map(g => (
                 <option key={g.gateId} value={g.gateId}>
+                  {g.siteName ? `${g.siteName} · ` : ''}
                   {g.name} ({g.gateType === 'PEDESTRIAN' ? 'pedestrian' : g.gateType.toLowerCase().replace(/_/g, ' ')})
                 </option>
               ))}
@@ -496,8 +512,8 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
             )}
             {data && data.items.length === 0 && (
               <tr>
-                <td style={{ ...td, textAlign: 'center', color: colors.slate[500], padding: '28px' }} colSpan={8}>
-                  No visitors match this view.
+                <td style={{ ...td, textAlign: 'left', color: colors.slate[500], padding: '28px 16px' }} colSpan={8}>
+                  <span style={{ position: 'sticky', left: '16px' }}>No visitors match this view.</span>
                 </td>
               </tr>
             )}

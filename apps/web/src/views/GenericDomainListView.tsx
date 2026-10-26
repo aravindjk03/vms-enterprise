@@ -20,12 +20,28 @@ import {
   Drawer, 
   StatusBadge, 
   Button, 
-  LoadingStateView, 
-  EmptyStateView, 
-  NoPermissionStateView, 
-  ErrorStateView,
-  type ColumnDef 
+  showToast,
+  type ColumnDef
 } from '@vms/ui';
+
+/** Downloads the rows currently shown (after search and filters) as a CSV file. */
+function downloadCsv(title: string, columns: ColumnDef<Record<string, any>>[], rows: Record<string, any>[]): void {
+  const cell = (value: unknown) => {
+    const text = value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const header = columns.map(c => cell(c.header));
+  const lines = rows.map(r => columns.map(c => cell(r[c.key as string])).join(','));
+  const blob = new Blob([[header.join(','), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export interface GenericDomainListViewProps {
   domainTitle: string;
@@ -47,11 +63,9 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
   requiredCapability = 'DOMAIN_READ',
 }) => {
   // State management
-  const [pageState, setPageState] = useState<'DEFAULT' | 'LOADING' | 'EMPTY' | 'NO_PERMISSION' | 'ERROR'>('DEFAULT');
   const [density, setDensity] = useState<'dense' | 'normal'>('dense');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeItem, setActiveItem] = useState<Record<string, any> | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -73,7 +87,7 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* 1. Header with Title, Actions, and State Switcher (for Section 42 inspection) */}
+      {/* 1. Header with Title and Actions */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: typography.fontSize.xl.size, fontWeight: 800, color: colors.slate[900] }}>
@@ -85,30 +99,6 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Canonical State Preview Switcher */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: colors.slate[100], padding: '2px', borderRadius: radius.sm }}>
-            {(['DEFAULT', 'LOADING', 'EMPTY', 'NO_PERMISSION', 'ERROR'] as const).map((st) => (
-              <button
-                key={st}
-                type="button"
-                onClick={() => setPageState(st)}
-                style={{
-                  padding: '3px 7px',
-                  borderRadius: radius.sm,
-                  border: 'none',
-                  backgroundColor: pageState === st ? '#ffffff' : 'transparent',
-                  color: pageState === st ? colors.primary[700] : colors.slate[600],
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: pageState === st ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                }}
-              >
-                {st}
-              </button>
-            ))}
-          </div>
-
           {onNewRecord && (
             <Button
               variant="primary"
@@ -122,30 +112,8 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
         </div>
       </div>
 
-      {/* 2. RENDER THE 5 CANONICAL STATES (Section 42) */}
-      {pageState === 'LOADING' ? (
-        <LoadingStateView message={`Retrieving ${domainTitle} live records from site ledger...`} />
-      ) : pageState === 'EMPTY' ? (
-        <EmptyStateView
-          title={`No ${domainTitle} Records Found`}
-          description="There are currently no active records or transactions registered for this site."
-          actionLabel={onNewRecord ? 'Create First Record' : undefined}
-          onAction={onNewRecord}
-        />
-      ) : pageState === 'NO_PERMISSION' ? (
-        <NoPermissionStateView
-          requiredRoleOrCapability={requiredCapability}
-          onGoBack={() => setPageState('DEFAULT')}
-        />
-      ) : pageState === 'ERROR' ? (
-        <ErrorStateView
-          errorTitle={`Failed to Sync ${domainTitle}`}
-          errorMessage="The connection to the local site gateway timed out."
-          onRetry={() => setPageState('DEFAULT')}
-        />
-      ) : (
-        /* DEFAULT STATE: Table + FilterBar + Side Drawer */
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* 2. Table + FilterBar + Side Drawer */}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
           <FilterBar
             searchValue={search}
             onSearchChange={setSearch}
@@ -154,7 +122,10 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
             statusOptions={statusOptions}
             density={density}
             onDensityToggle={() => setDensity(density === 'dense' ? 'normal' : 'dense')}
-            onExport={() => alert(`Exporting ${filteredData.length} records to CSV.`)}
+            onExport={() => {
+              downloadCsv(domainTitle, columns, filteredData);
+              showToast(`Exported ${filteredData.length} record(s) to CSV.`);
+            }}
             activeFilterCount={search || statusFilter ? 1 : 0}
             onClearFilters={() => {
               setSearch('');
@@ -167,19 +138,7 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
             columns={columns}
             keyExtractor={(item) => item.id || String(Math.random())}
             density={density}
-            selectedIds={selectedIds}
-            onSelectIds={setSelectedIds}
             onRowClick={(item) => setActiveItem(item)}
-            bulkActions={
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <Button variant="outline" size="dense" onClick={() => alert(`Bulk approve ${selectedIds.length}`)}>
-                  Approve Selected
-                </Button>
-                <Button variant="secondary" size="dense" onClick={() => alert(`Bulk print badges for ${selectedIds.length}`)}>
-                  Batch Print Passes
-                </Button>
-              </div>
-            }
           />
 
           <Pagination
@@ -189,8 +148,7 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
             onPageChange={setCurrentPage}
             onPageSizeChange={setPageSize}
           />
-        </div>
-      )}
+      </div>
 
       {/* 3. SIDE DRAWER QUICK INSPECT (Section 23) */}
       <Drawer
@@ -203,6 +161,7 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
             <span style={{ fontSize: '11px', color: colors.slate[500] }}>
               Source: {domainTitle} Engine
             </span>
+            {onOpenDetail && (
             <Button
               variant="primary"
               size="dense"
@@ -211,13 +170,12 @@ export const GenericDomainListView: React.FC<GenericDomainListViewProps> = ({
                 if (onOpenDetail && activeItem) {
                   onOpenDetail(activeItem);
                   setActiveItem(null);
-                } else {
-                  alert(`Navigating to full profile for ${activeItem?.id}`);
                 }
               }}
             >
               Open Full Profile
             </Button>
+            )}
           </div>
         }
       >

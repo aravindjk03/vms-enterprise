@@ -54,7 +54,8 @@ import {
   type SiteContextOption,
   type ColumnDef,
   type SearchResultItem,
-  type GateSyncState
+  type GateSyncState,
+  ToastHost,
 } from '@vms/ui';
 
 // Internal Views & Mock Data
@@ -146,6 +147,50 @@ function liveNavDomains<D extends { id: string; roles: string[]; items: Array<{ 
   }
   return [...live, ...preview];
 }
+
+/** Sample audit trail for the demo build (the live console reads /api/v1/audit-logs). */
+const DEMO_AUDIT_EVENTS = [
+  { id: 'AUD-1041', time: '2026-10-07 10:04', action: 'VISITOR_CHECKED_IN', actor: 'Gate Guard #04', entity: 'VIS-2026-0418', status: 'approved' },
+  { id: 'AUD-1040', time: '2026-10-07 09:58', action: 'VISITOR_APPROVED', actor: 'Host: R. Iyer', entity: 'VIS-2026-0418', status: 'approved' },
+  { id: 'AUD-1039', time: '2026-10-07 09:41', action: 'VISITOR_REGISTERED', actor: 'Reception REC-01', entity: 'VIS-2026-0418', status: 'active' },
+  { id: 'AUD-1038', time: '2026-10-07 09:12', action: 'LOGIN_FAILED', actor: 'unknown user', entity: 'Sign-in', status: 'warning' },
+  { id: 'AUD-1037', time: '2026-10-07 08:55', action: 'SERVICE_WORK_ORDER_APPROVED', actor: 'Maintenance Manager', entity: 'SWO-2026-0093', status: 'approved' },
+];
+
+/** AI Copilot preview: no language model is connected in this build, so the prompt says so plainly. */
+const AiCopilotPrompt: React.FC = () => {
+  const [question, setQuestion] = useState('');
+  const [asked, setAsked] = useState<string | null>(null);
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (question.trim()) setAsked(question.trim());
+      }}
+      style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+    >
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          aria-label="Question for the AI copilot"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Ask about plant operations, gate queues or emissions…"
+          style={{ flex: '1 1 260px', minWidth: 0, height: '38px', padding: '0 12px', border: `1px solid ${colors.slate[300]}`, borderRadius: radius.md, fontSize: typography.fontSize.sm.size }}
+        />
+        <Button type="submit" variant="primary" size="normal" rightIcon={<Sparkles size={14} />} disabled={!question.trim()}>
+          Analyze
+        </Button>
+      </div>
+      {asked && (
+        <div role="status" style={{ padding: '10px 12px', fontSize: typography.fontSize.sm.size, color: colors.slate[700], backgroundColor: colors.slate[50], border: `1px solid ${colors.slate[200]}`, borderRadius: radius.md }}>
+          The copilot is not connected to a language model in this version, so “{asked}” was not analyzed. Answers will
+          appear here once the analytics service is enabled.
+        </div>
+      )}
+    </form>
+  );
+};
 
 const LIVE_VISITOR_FILTERS: Record<string, string> = {
   '/visitors/approvals': 'PENDING',
@@ -328,7 +373,6 @@ export const App: React.FC<AppProps> = ({
         { route: '/contractors/returning', label: 'Returning Workers' },
         { route: '/contractors/assignments', label: 'Work Assignments' },
         { route: '/contractors/compliance', label: 'Compliance & Safety' },
-        { route: '/contractors/documents', label: 'Document Verification' },
         { route: '/contractors/training', label: 'Training Records' },
         { route: '/contractors/inductions', label: 'Safety Inductions' },
         { route: '/contractors/qualifications', label: 'Qualifications' },
@@ -340,11 +384,9 @@ export const App: React.FC<AppProps> = ({
         { route: '/contractors/approvals', label: 'Pending Approvals' },
         { route: '/contractors/expiring', label: 'Expiring Documents' },
         { route: '/contractors/restricted', label: 'Restricted Workers' },
-        { route: '/contractors/transport', label: 'Contractor Transport' },
         { route: '/contractors/traceability', label: 'ESG Activity Traceability' },
         { route: '/contractors/history', label: 'Contractor History' },
         { route: '/contractors/exceptions', label: 'Exceptions & Breaches' },
-        { route: '/contractors/reports', label: 'Workforce Reports' },
       ],
     },
     {
@@ -353,12 +395,7 @@ export const App: React.FC<AppProps> = ({
       icon: <Wrench size={18} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'EHS_MANAGER', 'MANAGEMENT', 'SERVICE_MANAGER'],
       items: [
-        { route: '/services', label: 'Service Requests' },
-        { route: '/services/technicians', label: 'Technicians' },
-        { route: '/services/work-orders', label: 'Hazardous Work Orders' },
-        { route: '/services/locations', label: 'Work Locations' },
-        { route: '/services/permits', label: 'Permits' },
-        { route: '/services/completion', label: 'Completion Sign-offs' },
+        { route: '/services', label: 'Service Tickets' },
       ],
     },
     {
@@ -367,14 +404,7 @@ export const App: React.FC<AppProps> = ({
       icon: <Package size={18} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_GUARD', 'AUDITOR', 'MANAGEMENT'],
       items: [
-        { route: '/materials/inward', label: 'Material Inward' },
-        { route: '/materials/outward', label: 'Material Outward' },
-        { route: '/materials/returnable', label: 'Returnable Asset Tracker' },
-        { route: '/materials/non-returnable', label: 'Non-Returnable Consignments' },
-        { route: '/materials/scrap', label: 'Scrap Dispatch' },
-        { route: '/materials/samples', label: 'Quality Samples' },
-        { route: '/materials/tools', label: 'Tools & Tackle' },
-        { route: '/materials/equipment', label: 'Equipment Movement' },
+        { route: '/materials', label: 'Material Passes' },
       ],
     },
     {
@@ -384,9 +414,6 @@ export const App: React.FC<AppProps> = ({
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_GUARD', 'AUDITOR', 'MANAGEMENT'],
       items: [
         { route: '/vehicles', label: 'Commercial Vehicles' },
-        { route: '/vehicles/drivers', label: 'Driver Verification' },
-        { route: '/vehicles/transporters', label: 'Transporters Registry' },
-        { route: '/vehicles/documents', label: 'PUC & Insurance Documents' },
       ],
     },
     {
@@ -395,10 +422,7 @@ export const App: React.FC<AppProps> = ({
       icon: <Compass size={18} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'ESG_MANAGER', 'MANAGEMENT'],
       items: [
-        { route: '/transport/activity', label: 'Mobility Activity' },
-        { route: '/transport/journeys', label: 'Multi-Stop Journeys' },
-        { route: '/transport/vehicle-activity', label: 'Vehicle Activity' },
-        { route: '/transport/history', label: 'Mobility History' },
+        { route: '/transport', label: 'Mobility Activity' },
       ],
     },
     {
@@ -407,12 +431,8 @@ export const App: React.FC<AppProps> = ({
       icon: <Shield size={18} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_GUARD', 'SECURITY_MANAGER'],
       items: [
-        { route: '/gate', label: 'Live Gate (Gate Mode)' },
-        { route: '/gate/entry', label: 'Inbound Lane' },
-        { route: '/gate/exit', label: 'Outbound Lane' },
-        { route: '/gate/passes', label: 'Gate Passes' },
-        { route: '/gate/exceptions', label: 'Exceptions' },
-        { route: '/gate/overstay', label: 'Overstay Queue' },
+        { route: '/gate', label: 'Gate Console' },
+        { route: '/gate/passes', label: 'Gate Passes & Exceptions' },
       ],
     },
     {
@@ -421,12 +441,7 @@ export const App: React.FC<AppProps> = ({
       icon: <KeyRound size={18} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER'],
       items: [
-        { route: '/access', label: 'Gate Turnstiles' },
-        { route: '/access/zones', label: 'Zone Governance' },
-        { route: '/access/policies', label: 'Security Policies' },
-        { route: '/access/credentials', label: 'RFID Credentials' },
-        { route: '/access/restricted', label: 'Restricted Areas' },
-        { route: '/access/history', label: 'Access History' },
+        { route: '/access', label: 'Access Points' },
       ],
     },
     {
@@ -436,11 +451,6 @@ export const App: React.FC<AppProps> = ({
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'LEGAL', 'HR', 'EHS_MANAGER', 'AUDITOR'],
       items: [
         { route: '/documents', label: 'Document Repository' },
-        { route: '/documents/verification', label: 'Verification Queue' },
-        { route: '/documents/expiring', label: 'Expiring Ledger' },
-        { route: '/documents/expired', label: 'Expired Documents' },
-        { route: '/documents/legal', label: 'Legal Master' },
-        { route: '/documents/nda', label: 'NDA Vault' },
       ],
     },
     {
@@ -449,12 +459,7 @@ export const App: React.FC<AppProps> = ({
       icon: <Flame size={18} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'EHS_MANAGER'],
       items: [
-        { route: '/safety', label: 'EHS Induction' },
-        { route: '/safety/induction', label: 'Safety Induction' },
-        { route: '/safety/training', label: 'Safety Training' },
-        { route: '/safety/ppe', label: 'PPE Compliance' },
-        { route: '/safety/permits', label: 'Permit To Work (PTW)' },
-        { route: '/safety/exceptions', label: 'Safety Exceptions' },
+        { route: '/safety', label: 'Inductions & Permits' },
       ],
     },
     {
@@ -463,11 +468,7 @@ export const App: React.FC<AppProps> = ({
       icon: <AlertOctagon size={18} color={colors.status.danger.solid} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_GUARD', 'EHS_MANAGER', 'MANAGEMENT'],
       items: [
-        { route: '/emergency', label: 'Live Occupancy' },
-        { route: '/emergency/events', label: 'Emergency Events' },
-        { route: '/emergency/muster', label: 'Muster Station Headcount' },
-        { route: '/emergency/missing', label: 'Missing Persons' },
-        { route: '/emergency/reports', label: 'Incident Reports' },
+        { route: '/emergency', label: 'Muster & Occupancy' },
       ],
     },
     {
@@ -476,15 +477,7 @@ export const App: React.FC<AppProps> = ({
       icon: <Leaf size={18} color={colors.esg[600]} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'ESG_MANAGER', 'AUDITOR', 'MANAGEMENT'],
       items: [
-        { route: '/esg', label: 'Activity Overview' },
-        { route: '/esg/activity', label: 'Activity Ledger (Traceable)' },
-        { route: '/esg/transport', label: 'Transport Carbon (Scope 3)' },
-        { route: '/esg/material-transport', label: 'Material Transport' },
-        { route: '/esg/emission-factors', label: 'Emission Factor Master' },
-        { route: '/esg/calculations', label: 'Historical GHG Calculations' },
-        { route: '/esg/scope-mapping', label: 'Scope Mapping Rules' },
-        { route: '/esg/data-quality', label: 'Data Quality & Provenance' },
-        { route: '/esg/reports', label: 'ESG Disclosures' },
+        { route: '/esg', label: 'GHG Activity Ledger' },
       ],
     },
     {
@@ -493,16 +486,7 @@ export const App: React.FC<AppProps> = ({
       icon: <BarChart3 size={18} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'MANAGEMENT', 'AUDITOR'],
       items: [
-        { route: '/analytics', label: 'Operations & Throughput' },
-        { route: '/analytics/security', label: 'Security BI' },
-        { route: '/analytics/visitors', label: 'Visitor Analytics' },
-        { route: '/analytics/customers', label: 'Customer Analytics' },
-        { route: '/analytics/contractors', label: 'Contractor Analytics' },
-        { route: '/analytics/materials', label: 'Material Analytics' },
-        { route: '/analytics/vehicles', label: 'Vehicle Analytics' },
-        { route: '/analytics/transport', label: 'Transport Analytics' },
-        { route: '/analytics/compliance', label: 'Compliance Analytics' },
-        { route: '/analytics/esg', label: 'ESG Disclosures BI' },
+        { route: '/analytics', label: 'Operations Analytics' },
       ],
     },
     {
@@ -520,21 +504,11 @@ export const App: React.FC<AppProps> = ({
       icon: <Settings size={18} />,
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'IT_ADMIN'],
       items: [
-        { route: '/admin', label: 'Multi-Tenant Setup' },
-        { route: '/admin/users', label: 'User Directory' },
-        { route: '/admin/roles', label: 'Roles & Privileges' },
-        { route: '/admin/permissions', label: 'Permission Matrix' },
         { route: '/admin/sites', label: 'Sites & Facilities' },
-        { route: '/admin/gates', label: 'Gates & Lanes' },
-        { route: '/admin/zones', label: 'Zones & Turnstiles' },
         { route: '/admin/master-data', label: 'Master Data' },
         { route: '/admin/workflows', label: 'Workflow Builder' },
         { route: '/admin/rules', label: 'Business Rules Engine' },
-        { route: '/admin/notifications', label: 'Notification Config' },
-        { route: '/admin/integrations', label: 'ERP & ANPR Integrations' },
         { route: '/admin/audit', label: 'Audit Logs' },
-        { route: '/admin/privacy', label: 'Privacy & Data Masking' },
-        { route: '/admin/retention', label: 'Retention Policies' },
       ],
     },
   ];
@@ -803,12 +777,12 @@ export const App: React.FC<AppProps> = ({
 
     // 1. Kiosk Terminal
     if (activeRoute === '/kiosk') {
-      return <KioskWelcomeView onExitKiosk={() => setActiveRoute('/dashboard')} />;
+      return <div className="tw"><KioskWelcomeView onExitKiosk={() => setActiveRoute('/dashboard')} /></div>;
     }
 
     // 2. Gate Lane Consoles
     if (activeRoute === '/gate' || activeRoute === '/gate/entry' || activeRoute === '/gate/exit') {
-      return <GateModeView />;
+      return <div className="tw"><GateModeView /></div>;
     }
 
     // 3. Dashboards
@@ -845,6 +819,7 @@ export const App: React.FC<AppProps> = ({
       else subView = 'ALL';
 
       return (
+        <div className="tw">
         <VisitorManagementView
           initialSubView={subView}
           currentRole={activeRole}
@@ -872,6 +847,7 @@ export const App: React.FC<AppProps> = ({
             setActiveRoute(subToRoute[nextSub] || '/visitors');
           }}
         />
+        </div>
       );
     }
 
@@ -901,6 +877,7 @@ export const App: React.FC<AppProps> = ({
       else subView = 'DASHBOARD';
 
       return (
+        <div className="tw">
         <CustomerManagementView
           initialSubView={subView}
           currentRole={activeRole}
@@ -932,6 +909,7 @@ export const App: React.FC<AppProps> = ({
             setActiveRoute(subToRoute[nextSub] || '/customers');
           }}
         />
+        </div>
       );
     }
 
@@ -1018,7 +996,6 @@ export const App: React.FC<AppProps> = ({
           domainDescription="OEM technician tickets, machine maintenance work orders, and hazardous permits"
           data={DEMO_SERVICES}
           columns={serviceColumns}
-          onNewRecord={() => setActiveRoute('/visitors/new')}
           onOpenDetail={(item) => setSelectedDetailItem({ item, entityType: 'CONTRACTOR' })}
           requiredCapability="SERVICE_READ"
         />
@@ -1033,7 +1010,6 @@ export const App: React.FC<AppProps> = ({
           domainDescription="Delivery challans, weighbridge inward/outward passes, scrap dispatch, and returnable escrows"
           data={DEMO_MATERIALS}
           columns={materialColumns}
-          onNewRecord={() => setActiveRoute('/visitors/new')}
           onOpenDetail={(item) => setSelectedDetailItem({ item, entityType: 'MATERIAL' })}
           requiredCapability="MATERIAL_READ"
         />
@@ -1048,7 +1024,6 @@ export const App: React.FC<AppProps> = ({
           domainDescription="Commercial freight fleet, driver license validation, breathalyzer logs, and transporter registry"
           data={DEMO_VEHICLES}
           columns={vehicleColumns}
-          onNewRecord={() => setActiveRoute('/visitors/new')}
           onOpenDetail={(item) => setSelectedDetailItem({ item, entityType: 'VEHICLE' })}
           requiredCapability="VEHICLE_READ"
         />
@@ -1174,9 +1149,6 @@ export const App: React.FC<AppProps> = ({
                 Throughput BI, Turnstile Heatmaps, Contractor Compliance SLA, and Carbon Disclosures
               </span>
             </div>
-            <Button variant="secondary" size="dense" leftIcon={<BarChart3 size={14} />}>
-              Export Analytics BI
-            </Button>
           </div>
           <ExecutiveDashboardView />
         </div>
@@ -1197,24 +1169,7 @@ export const App: React.FC<AppProps> = ({
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="Ask the AI copilot about plant operations, gate queues, or emissions..."
-                style={{
-                  flex: 1,
-                  height: '38px',
-                  padding: '0 12px',
-                  border: `1px solid ${colors.slate[300]}`,
-                  borderRadius: radius.md,
-                  fontSize: typography.fontSize.sm.size,
-                  outline: 'none',
-                }}
-              />
-              <Button variant="primary" size="normal" rightIcon={<Sparkles size={14} />}>
-                Analyze
-              </Button>
-            </div>
+            <AiCopilotPrompt />
           </div>
         </Card>
       );
@@ -1222,7 +1177,13 @@ export const App: React.FC<AppProps> = ({
 
     // 20. Task Center (/tasks*)
     if (activeRoute.startsWith('/tasks')) {
-      return <TaskCenterView userRole={activeRole} />;
+      const taskTabs: Record<string, 'MY_PENDING' | 'DELEGATED' | 'OVERDUE' | 'COMPLETED'> = {
+        '/tasks': 'MY_PENDING',
+        '/tasks/delegated': 'DELEGATED',
+        '/tasks/overdue': 'OVERDUE',
+        '/tasks/history': 'COMPLETED',
+      };
+      return <TaskCenterView userRole={activeRole} initialTab={taskTabs[activeRoute] ?? 'MY_PENDING'} />;
     }
 
     // 21. Specific Enterprise Admin Workspaces (Part 5)
@@ -1239,9 +1200,24 @@ export const App: React.FC<AppProps> = ({
     // 22. General Administration Routes (/admin*)
     if (activeRoute.startsWith('/admin')) {
       return (
+        activeRoute === '/admin/audit' ? (
+          <GenericDomainListView
+            domainTitle="Audit Logs"
+            domainDescription="Append-only record of sign-ins and state changes"
+            data={DEMO_AUDIT_EVENTS}
+            columns={[
+              { key: 'time', header: 'Time', width: '160px' },
+              { key: 'action', header: 'Action', render: (r) => <strong>{r.action}</strong> },
+              { key: 'actor', header: 'Actor' },
+              { key: 'entity', header: 'Entity' },
+              { key: 'status', header: 'Result', render: (r) => <StatusBadge status={r.status} size="sm" /> },
+            ]}
+            requiredCapability="AUDIT_LOG_READ"
+          />
+        ) : (
         <GenericDomainListView
-          domainTitle="Enterprise Administration"
-          domainDescription="Multi-tenant master data, facility sites, gates, zones, RBAC policies, and audit ledgers"
+          domainTitle="Sites & Facilities"
+          domainDescription="Facility sites with their gates and zones"
           data={[
             { id: 'ADM-01', name: 'Chennai Radial Tyre Plant', type: 'MANUFACTURING_PLANT', gatesCount: 3, zonesCount: 8, status: 'active' },
             { id: 'ADM-02', name: 'Pune Stamping & Assembly Plant', type: 'MANUFACTURING_PLANT', gatesCount: 2, zonesCount: 6, status: 'active' },
@@ -1257,6 +1233,7 @@ export const App: React.FC<AppProps> = ({
           ]}
           requiredCapability="SYSTEM_ADMIN_MANAGE"
         />
+        )
       );
     }
 
@@ -1714,6 +1691,8 @@ export const App: React.FC<AppProps> = ({
           {renderMainContent()}
         </main>
       </div>
+
+      <ToastHost />
 
       {/* 4. MODALS & GLOBAL PALETTES */}
       <CommandPalette

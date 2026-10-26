@@ -44,7 +44,7 @@ export const TransactionFormView: React.FC<{
   // Operational Form State (Visitor Pre-Registration Demo)
   const [visitorName, setVisitorName] = useState('Aravind Swaminathan');
   const [visitorCompany, setVisitorCompany] = useState('Siemens Industrial Automation');
-  const [visitorEmail, setVisitorEmail] = useState('aravind.s@siemens.com');
+  const [visitorEmail, setVisitorEmail] = useState('aravind.s@siemens.example');
   const [visitorPhone, setVisitorPhone] = useState('+91 98401 23456');
   const [purpose, setPurpose] = useState('PLC Diagnostic & SCADA Upgrade');
   const [hostUserId, setHostUserId] = useState('Vikram Mehta (Plant Lead - Ext: 4102)');
@@ -59,7 +59,7 @@ export const TransactionFormView: React.FC<{
     fuelType: 'DIESEL',
     occupancy: 2,
     originLocation: 'Siemens Regional Campus, Bengaluru',
-    destinationLocation: 'MRF Chennai Plant Gate 1',
+    destinationLocation: 'Northwind Chennai Plant Gate 1',
     distanceKm: 348,
     distanceProvenance: 'SYSTEM_ESTIMATED',
     journeyType: 'ROUND_TRIP',
@@ -493,7 +493,7 @@ export const TransactionFormView: React.FC<{
               </div>
               <div>
                 <span style={{ color: colors.slate[500] }}>Mobility Route:</span>
-                <div style={{ fontWeight: 700 }}>{esgActivity.originLocation} → MRF Chennai</div>
+                <div style={{ fontWeight: 700 }}>{esgActivity.originLocation} → Northwind Chennai</div>
                 <div style={{ color: colors.esg[700] }}>{esgActivity.distanceKm} km ({esgActivity.mode})</div>
               </div>
               <div>

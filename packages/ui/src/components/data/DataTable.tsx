@@ -9,6 +9,10 @@ export interface ColumnDef<T> {
   width?: string;
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
+  /** Let long text wrap instead of widening the table (titles, names, descriptions). */
+  wrap?: boolean;
+  /** Minimum width for a wrapping column so it stays readable. */
+  minWidth?: string;
   render?: (item: T, index: number) => React.ReactNode;
 }
 
@@ -304,7 +308,9 @@ export function DataTable<T extends Record<string, unknown>>({
                             fontSize,
                             color: colors.slate[800],
                             textAlign: col.align || 'left',
-                            whiteSpace: 'nowrap',
+                            whiteSpace: col.wrap ? 'normal' : 'nowrap',
+                            minWidth: col.minWidth,
+                            overflowWrap: col.wrap ? 'anywhere' : undefined,
                           }}
                         >
                           {col.render ? col.render(item, idx) : (value != null ? String(value) : '—')}

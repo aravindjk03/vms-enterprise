@@ -6,8 +6,8 @@ import type { TimelineEventItem } from '@vms/ui';
 
 export const DEMO_SITES: SiteContextOption[] = [
   {
-    organizationId: 'ORG-MRF-INDIA',
-    organizationName: 'MRF Tyres & Polymers',
+    organizationId: 'ORG-NORTHWIND-IN',
+    organizationName: 'Northwind Tyres & Polymers',
     siteId: 'SITE-CHN-01',
     siteName: 'Chennai Radial Tyre Plant',
     gateId: 'GATE-01',
@@ -16,8 +16,8 @@ export const DEMO_SITES: SiteContextOption[] = [
     zoneName: 'Administrative Lobby',
   },
   {
-    organizationId: 'ORG-MRF-INDIA',
-    organizationName: 'MRF Tyres & Polymers',
+    organizationId: 'ORG-NORTHWIND-IN',
+    organizationName: 'Northwind Tyres & Polymers',
     siteId: 'SITE-PUN-02',
     siteName: 'Pune Stamping & Assembly Plant',
     gateId: 'GATE-02',
@@ -26,8 +26,8 @@ export const DEMO_SITES: SiteContextOption[] = [
     zoneName: 'Raw Materials Bay',
   },
   {
-    organizationId: 'ORG-MRF-INDIA',
-    organizationName: 'MRF Tyres & Polymers',
+    organizationId: 'ORG-NORTHWIND-IN',
+    organizationName: 'Northwind Tyres & Polymers',
     siteId: 'SITE-JSR-03',
     siteName: 'Jamshedpur Heavy Logistics Complex',
     gateId: 'GATE-03',

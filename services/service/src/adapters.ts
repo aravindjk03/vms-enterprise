@@ -25,8 +25,8 @@ export class UnavailableSafetyAdapter implements SafetyPermitAdapter {
       integration: 'UNAVAILABLE',
       permitStatus: 'UNKNOWN',
       detail: input.permitRequired
-        ? 'Safety & Permit service is not integrated yet (Part 14). Permit status cannot be confirmed automatically; an authorized EHS/site manager must verify prerequisites manually.'
-        : 'Safety & Permit service is not integrated yet (Part 14).',
+        ? 'The Safety & Permit service is not connected yet, so permit status cannot be confirmed automatically. An authorized EHS or site manager must verify prerequisites manually.'
+        : 'The Safety & Permit service is not connected yet.',
     };
   }
 }
@@ -48,7 +48,7 @@ export class UnavailableAccessAdapter implements AccessIntegrationAdapter {
       integration: 'UNAVAILABLE',
       lastObservedEvent: null,
       detail:
-        'Gate & Access service is not integrated with Service yet (Part 13). Arrival/departure shown here are reported milestones, not observed gate events, and a work order does not grant site access.',
+        'Gate & Access is not connected to Service yet. Arrival and departure shown here are reported milestones, not observed gate events, and a work order does not grant site access.',
     };
   }
 }

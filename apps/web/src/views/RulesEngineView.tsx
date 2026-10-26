@@ -14,7 +14,9 @@ import {
   Zap
 } from 'lucide-react';
 import { colors, radius, typography } from '@vms/ui/tokens';
-import { Button, Card, StatusBadge } from '@vms/ui';
+import { Button, Card, StatusBadge,
+  showToast,
+} from '@vms/ui';
 import type { PolicyDefinition, PolicyRule, RuleCondition, WorkflowDomain } from '@vms/types';
 
 export interface RulesEngineViewProps {
@@ -194,7 +196,7 @@ export const RulesEngineView: React.FC<RulesEngineViewProps> = ({
         explanation,
       });
     } catch (e: any) {
-      alert(`Invalid JSON context: ${e.message}`);
+      showToast(`Invalid JSON context: ${e.message}`, 'danger');
     }
   };
 

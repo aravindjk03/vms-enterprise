@@ -392,7 +392,7 @@ export async function registerJourneyRoutes(app: FastifyInstance, ctx: RouteCont
         sources: sources.rows,
         ghgActivity: ghg.rows[0] ?? null,
         captureQueue: queue.rows[0] ?? null,
-        note: 'Scope, category, emission factor and CO2e are assigned by the central GHG engine (Part 16); none are entered or calculated here.',
+        note: 'Scope, category, emission factor and CO2e are assigned by the central GHG engine; none are entered or calculated here.',
       };
     })
   );

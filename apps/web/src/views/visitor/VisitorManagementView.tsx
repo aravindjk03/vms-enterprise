@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Users,
   UserCheck,
@@ -144,7 +144,7 @@ const INITIAL_VISITORS: VisitorRecordItem[] = [
     referenceNumber: 'VIS-2026-000182',
     name: 'Aravind Swaminathan',
     phone: '+91-9884011223',
-    email: 'aravind@siemens.com',
+    email: 'aravind@siemens.example',
     company: 'Siemens Industrial Automation',
     designation: 'Senior Field Systems Engineer',
     visitorCategory: 'CONSULTANT',
@@ -192,7 +192,7 @@ const INITIAL_VISITORS: VisitorRecordItem[] = [
     referenceNumber: 'VIS-2026-000183',
     name: 'Priya Sundaram',
     phone: '+91-9444098765',
-    email: 'priya.s@tuvsud.com',
+    email: 'priya.s@tuvsud.example',
     company: 'TÜV SÜD South Asia',
     designation: 'Lead Environmental Auditor',
     visitorCategory: 'AUDITOR',
@@ -239,7 +239,7 @@ const INITIAL_VISITORS: VisitorRecordItem[] = [
     referenceNumber: 'VIS-2026-000184',
     name: 'Dr. Robert Chen',
     phone: '+1-415-889-1122',
-    email: 'rchen@bridgestone-tech.com',
+    email: 'rchen@bridgestone-tech.example',
     company: 'Bridgestone Global Engineering',
     designation: 'VP Material Formulations',
     visitorCategory: 'VIP_VISITOR',
@@ -386,6 +386,8 @@ export const VisitorManagementView: React.FC<VisitorManagementViewProps> = ({
   onNavigateSubView,
 }) => {
   const [subView, setSubView] = useState<VisitorSubView>(initialSubView);
+  // Keep the screen in step with the menu item (the component stays mounted between Visitor items).
+  useEffect(() => setSubView(initialSubView), [initialSubView]);
   const [visitors, setVisitors] = useState<VisitorRecordItem[]>(INITIAL_VISITORS);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -1055,7 +1057,7 @@ export const VisitorManagementView: React.FC<VisitorManagementViewProps> = ({
                     type="email"
                     value={formEmail}
                     onChange={e => setFormEmail(e.target.value)}
-                    placeholder="ramesh@company.com"
+                    placeholder="ramesh@company.example"
                     className="w-full text-xs p-2 border border-slate-200 rounded mt-1"
                   />
                 </div>

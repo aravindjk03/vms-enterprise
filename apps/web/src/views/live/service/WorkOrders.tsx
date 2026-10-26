@@ -25,6 +25,7 @@ import {
   SERVICE_TYPES,
   Tabs,
   TextField,
+  titleWithRef,
   useMutation,
   usePagedList,
   useSites,
@@ -70,13 +71,7 @@ export const WorkOrdersView: React.FC<{ user: SessionUser; createForRequest?: st
   }
 
   const columns: ColumnDef<WorkOrderRow>[] = [
-    { key: 'referenceNumber', header: 'Reference', render: r => reference(r.referenceNumber) },
-    { key: 'title', header: 'Work order', render: r => <strong>{r.title}</strong> },
-    { key: 'providerName', header: 'Provider' },
-    { key: 'siteName', header: 'Site' },
-    { key: 'scheduledStart', header: 'Scheduled', render: r => when(r.scheduledStart) },
-    { key: 'technicians', header: 'Technicians', align: 'right' },
-    { key: 'priority', header: 'Priority', render: r => pill(r.priority) },
+    { key: 'title', header: 'Work order', wrap: true, minWidth: '220px', render: r => titleWithRef(r.title, r.referenceNumber) },
     {
       key: 'status',
       header: 'Status',
@@ -87,6 +82,11 @@ export const WorkOrdersView: React.FC<{ user: SessionUser; createForRequest?: st
         </span>
       ),
     },
+    { key: 'priority', header: 'Priority', render: r => pill(r.priority) },
+    { key: 'scheduledStart', header: 'Scheduled', render: r => when(r.scheduledStart) },
+    { key: 'providerName', header: 'Provider', wrap: true, minWidth: '120px' },
+    { key: 'siteName', header: 'Site', wrap: true, minWidth: '140px' },
+    { key: 'technicians', header: 'Technicians', align: 'right' },
   ];
 
   return (
@@ -688,7 +688,7 @@ const CompletionPanel: React.FC<{ data: WorkOrderDetailData; user: SessionUser; 
   );
   return (
     <>
-      <Section title="Deliverables" note="Document upload arrives with the central Document service (Part 12); evidence is recorded as a reference note until then.">
+      <Section title="Deliverables" note="File upload is not available yet; record evidence as a reference (certificate number, report ID) until it is.">
         {data.deliverables.length === 0 && <p style={{ margin: 0, fontSize: '13px', color: colors.slate[500] }}>No deliverables were required.</p>}
         {data.deliverables.map(d => (
           <div key={d.id} style={{ borderBottom: `1px solid ${colors.slate[100]}`, padding: '8px 0', fontSize: '13px' }}>

@@ -11,7 +11,9 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import { colors, radius, typography } from '@vms/ui/tokens';
-import { Card } from '@vms/ui';
+import { Card,
+  showToast,
+} from '@vms/ui';
 import { StatusBadge } from '@vms/ui';
 import { Button } from '@vms/ui';
 
@@ -47,7 +49,7 @@ export const SecurityDashboardView: React.FC = () => {
           variant="secondary"
           size="dense"
           style={{ backgroundColor: '#ffffff', color: colors.status.danger.solid, fontWeight: 800 }}
-          onClick={() => alert('Dispatched shift patrol to Solvent Storage Bay B')}
+          onClick={() => showToast('Shift patrol dispatched to Solvent Storage Bay B.')}
         >
           Acknowledge / Dispatch
         </Button>
@@ -140,7 +142,7 @@ export const SecurityDashboardView: React.FC = () => {
                   Host: Arun Kumar (Ext: 4421)
                 </div>
               </div>
-              <Button variant="danger" size="dense" onClick={() => alert('Host contacted')}>
+              <Button variant="danger" size="dense" onClick={() => showToast('Host notified.')}>
                 Call Host
               </Button>
             </div>

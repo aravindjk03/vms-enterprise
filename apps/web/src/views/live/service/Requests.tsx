@@ -21,6 +21,7 @@ import {
   SelectField,
   SERVICE_TYPES,
   TextField,
+  titleWithRef,
   useMutation,
   usePagedList,
   useSites,
@@ -166,15 +167,13 @@ export const RequestsView: React.FC<{ user: SessionUser; openCreate?: boolean; o
   }
 
   const columns: ColumnDef<RequestRow>[] = [
-    { key: 'referenceNumber', header: 'Reference', render: r => reference(r.referenceNumber) },
-    { key: 'title', header: 'Request', render: r => <strong>{r.title}</strong> },
-    { key: 'serviceType', header: 'Type', render: r => label(r.serviceType) },
-    { key: 'priority', header: 'Priority', render: r => pill(r.priority) },
-    { key: 'siteName', header: 'Site' },
-    { key: 'requestedBy', header: 'Requested by' },
-    { key: 'createdAt', header: 'Raised', render: r => when(r.createdAt) },
-    { key: 'workOrders', header: 'Work orders', align: 'right' },
+    { key: 'title', header: 'Request', wrap: true, minWidth: '220px', render: r => titleWithRef(r.title, r.referenceNumber) },
     { key: 'status', header: 'Status', render: r => pill(r.status) },
+    { key: 'priority', header: 'Priority', render: r => pill(r.priority) },
+    { key: 'serviceType', header: 'Type', wrap: true, render: r => label(r.serviceType) },
+    { key: 'siteName', header: 'Site', wrap: true, minWidth: '140px' },
+    { key: 'requestedBy', header: 'Requested', wrap: true, render: r => <div>{r.requestedBy}<div style={{ fontSize: '11px', color: colors.slate[500] }}>{when(r.createdAt)}</div></div> },
+    { key: 'workOrders', header: 'Work orders', align: 'right' },
   ];
 
   return (

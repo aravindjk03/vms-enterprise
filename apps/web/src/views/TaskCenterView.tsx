@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   CheckSquare,
   Clock,
@@ -20,11 +20,17 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { colors, radius, typography } from '@vms/ui/tokens';
-import { Button, Card, StatusBadge } from '@vms/ui';
+import { Button, Card, StatusBadge,
+  showToast,
+} from '@vms/ui';
 import type { WorkflowDomain, EnterpriseRole } from '@vms/types';
 import type { TaskItemView } from '../../../../services/workflow/src/task/task-center.service.js';
 
+export type TaskCenterTab = 'MY_PENDING' | 'ASSIGNED_TO_ME' | 'DELEGATED' | 'WAITING_OTHERS' | 'OVERDUE' | 'ESCALATED' | 'COMPLETED';
+
 export interface TaskCenterViewProps {
+  /** Tab opened by the menu item (Pending approvals, Delegated, Overdue, Completed history). */
+  initialTab?: TaskCenterTab;
   userRole?: EnterpriseRole;
   userId?: string;
   tenantId?: string;
@@ -141,13 +147,13 @@ const INITIAL_TASKS: TaskItemView[] = [
 ];
 
 export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
+  initialTab = 'MY_PENDING',
   userRole = 'SUPER_ADMIN',
   userId = 'user-01',
 }) => {
-  // Navigation tab state
-  const [activeTab, setActiveTab] = useState<
-    'MY_PENDING' | 'ASSIGNED_TO_ME' | 'DELEGATED' | 'WAITING_OTHERS' | 'OVERDUE' | 'ESCALATED' | 'COMPLETED'
-  >('MY_PENDING');
+  // Navigation tab state (follows the menu item that opened the view)
+  const [activeTab, setActiveTab] = useState<TaskCenterTab>(initialTab);
+  useEffect(() => setActiveTab(initialTab), [initialTab]);
 
   const [domainFilter, setDomainFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -212,7 +218,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
     const { task, action } = activeActionModal;
 
     if (action === 'REJECT' && !remarksInput.trim()) {
-      alert('Mandatory Rejection Rule: Rejection remarks must be provided.');
+      showToast('Rejection remarks are required.', 'warning');
       return;
     }
 

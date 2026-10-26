@@ -64,6 +64,7 @@ import {
   Drawer,
   Timeline,
   type ColumnDef,
+  showToast,
 } from '@vms/ui';
 const fs = {
   micro: typography.fontSize.micro.size,
@@ -148,7 +149,7 @@ const INITIAL_COMPANIES = [
     status: 'ACTIVE' as ContractorCompanyStatus,
     primaryContactName: 'Rajesh Sharma',
     primaryContactPhone: '+91 98765 43210',
-    primaryContactEmail: 'rajesh.sharma@apexinfra.com',
+    primaryContactEmail: 'rajesh.sharma@apexinfra.example',
     siteContactName: 'Suresh Patil',
     activeContractsCount: 3,
     activeWorkOrdersCount: 5,
@@ -167,7 +168,7 @@ const INITIAL_COMPANIES = [
     status: 'ACTIVE' as ContractorCompanyStatus,
     primaryContactName: 'Anita Roy',
     primaryContactPhone: '+91 98220 11223',
-    primaryContactEmail: 'anita.roy@volttech.in',
+    primaryContactEmail: 'anita.roy@volttech.example',
     siteContactName: 'Kunal Verma',
     activeContractsCount: 1,
     activeWorkOrdersCount: 2,
@@ -186,7 +187,7 @@ const INITIAL_COMPANIES = [
     status: 'ACTIVE' as ContractorCompanyStatus,
     primaryContactName: 'Dharmesh Gupta',
     primaryContactPhone: '+91 97110 55667',
-    primaryContactEmail: 'd.gupta@solidground.co',
+    primaryContactEmail: 'd.gupta@solidground.example',
     siteContactName: 'Mahesh Nair',
     activeContractsCount: 2,
     activeWorkOrdersCount: 3,
@@ -737,7 +738,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
       status: 'ACTIVE' as ContractorCompanyStatus,
       primaryContactName: newCompanyForm.primaryContactName || 'Authorized Rep',
       primaryContactPhone: newCompanyForm.primaryContactPhone || '+91 90000 00000',
-      primaryContactEmail: newCompanyForm.primaryContactEmail || 'admin@contractor.com',
+      primaryContactEmail: newCompanyForm.primaryContactEmail || 'admin@contractor.example',
       siteContactName: 'Site Supervisor',
       activeContractsCount: 0,
       activeWorkOrdersCount: 0,
@@ -826,7 +827,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
     if (!w || !wo) return;
 
     if (!w.medicalFitnessValid || w.status === 'RESTRICTED') {
-      alert(`GATE ACCESS DENIED: Worker ${w.fullName} is currently RESTRICTED or has lapsed medical fitness.`);
+      showToast(`Gate access denied: ${w.fullName} is restricted or has lapsed medical fitness.`, 'danger');
       return;
     }
 
@@ -1643,10 +1644,10 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
                 header: 'Action',
                 render: (r) => (
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <Button size="dense" variant="primary" onClick={() => alert(`Approved ${r.workOrderNumber}`)}>
+                    <Button size="dense" variant="primary" onClick={() => showToast(`Approved ${r.workOrderNumber}.`)}>
                       Approve
                     </Button>
-                    <Button size="dense" variant="secondary" onClick={() => alert(`Changes requested for ${r.workOrderNumber}`)}>
+                    <Button size="dense" variant="secondary" onClick={() => showToast(`Changes requested for ${r.workOrderNumber}.`, 'info')}>
                       Review
                     </Button>
                   </div>
@@ -2170,7 +2171,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px 0' }}>
             <Banner
               title="Canonical Domain Record"
-              message={`Isolated entity strictly governed by Part 8 Contractor Domain. Tenant isolation verified for ${siteId}.`}
+              message={`Contractor records are isolated per tenant and shown for site ${siteId}.`}
               type="system"
             />
             <pre

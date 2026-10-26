@@ -13,7 +13,9 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { colors, radius, typography } from '@vms/ui/tokens';
-import { Button } from '@vms/ui';
+import { Button,
+  showToast,
+} from '@vms/ui';
 import { GateDecisionPanel, type GateDecisionSubject } from '@vms/ui';
 
 export const GateModeView: React.FC = () => {
@@ -299,7 +301,7 @@ export const GateModeView: React.FC = () => {
           onAllow={handleAllow}
           onDeny={handleDeny}
           onClear={() => setActiveSubject(null)}
-          onReprint={() => alert('Printing thermal gate pass with QR token')}
+          onReprint={() => showToast('Gate pass with QR token sent to the thermal printer.', 'info')}
         />
       </div>
 

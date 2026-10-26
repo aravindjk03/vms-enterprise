@@ -59,6 +59,7 @@ import {
   Drawer,
   Timeline,
   type ColumnDef,
+  showToast,
 } from '@vms/ui';
 import type {
   EnterpriseRole,
@@ -236,7 +237,7 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 2,
     totalVisitsCount: 18,
     contactPerson: 'David Vance',
-    contactEmail: 'dvance@tesla.com',
+    contactEmail: 'dvance@tesla.example',
     contactPhone: '+1-512-555-0199',
   },
   {
@@ -255,7 +256,7 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 1,
     totalVisitsCount: 24,
     contactPerson: 'Kenji Takahashi',
-    contactEmail: 'kenji.takahashi@toyota-asia.com',
+    contactEmail: 'kenji.takahashi@toyota-asia.example',
     contactPhone: '+65-6888-9120',
   },
   {
@@ -274,7 +275,7 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 1,
     totalVisitsCount: 12,
     contactPerson: 'Marcus Weber',
-    contactEmail: 'marcus.weber@bmwgroup.com',
+    contactEmail: 'marcus.weber@bmwgroup.example',
     contactPhone: '+49-89-382-019',
   },
   {
@@ -293,7 +294,7 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 1,
     totalVisitsCount: 31,
     contactPerson: 'Elena Rostova',
-    contactEmail: 'elena.rostova@bosch.de',
+    contactEmail: 'elena.rostova@bosch.example',
     contactPhone: '+49-711-811-0',
   },
   {
@@ -312,7 +313,7 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 0,
     totalVisitsCount: 9,
     contactPerson: 'Arun Deshmukh',
-    contactEmail: 'arun.deshmukh@cummins.com',
+    contactEmail: 'arun.deshmukh@cummins.example',
     contactPhone: '+91-20-6706-0000',
   },
 ];
@@ -326,7 +327,7 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
     canonicalPersonId: 'prs-tesla-01',
     fullName: 'David Vance',
     phone: '+1-512-555-0199',
-    email: 'dvance@tesla.com',
+    email: 'dvance@tesla.example',
     designation: 'Director of Global Supplier Quality',
     department: 'Supply Chain Operations',
     isVip: true,
@@ -340,7 +341,7 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
     canonicalPersonId: 'prs-tesla-02',
     fullName: 'Sophia Lin',
     phone: '+1-512-555-0244',
-    email: 'slin@tesla.com',
+    email: 'slin@tesla.example',
     designation: 'Senior Powertrain Battery Engineer',
     department: 'Engineering Quality',
     isVip: false,
@@ -354,7 +355,7 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
     canonicalPersonId: 'prs-tyta-01',
     fullName: 'Kenji Takahashi',
     phone: '+65-6888-9120',
-    email: 'kenji.takahashi@toyota-asia.com',
+    email: 'kenji.takahashi@toyota-asia.example',
     designation: 'Chief Engineer — TPS Audit Division',
     department: 'Quality Assurance',
     isVip: true,
@@ -368,7 +369,7 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
     canonicalPersonId: 'prs-bmw-01',
     fullName: 'Marcus Weber',
     phone: '+49-89-382-019',
-    email: 'marcus.weber@bmwgroup.com',
+    email: 'marcus.weber@bmwgroup.example',
     designation: 'Head of Chassis Procurement',
     department: 'Strategic Sourcing',
     isVip: true,
@@ -382,7 +383,7 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
     canonicalPersonId: 'prs-bsch-01',
     fullName: 'Elena Rostova',
     phone: '+49-711-811-0',
-    email: 'elena.rostova@bosch.de',
+    email: 'elena.rostova@bosch.example',
     designation: 'Lead Auditor — VDA 6.3 Process Audit',
     department: 'Quality Compliance',
     isVip: false,
@@ -403,8 +404,8 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     bookingMode: 'RESERVED',
     leadParticipantName: 'David Vance',
     participants: [
-      { id: 'p-1', name: 'David Vance', email: 'dvance@tesla.com', phone: '+1-512-555-0199', designation: 'Director Global Quality', isLead: true, status: 'INSIDE', gatePassNumber: 'GP-CUS-101-01', checkInTime: '2026-10-11T09:15:00Z' },
-      { id: 'p-2', name: 'Sophia Lin', email: 'slin@tesla.com', phone: '+1-512-555-0244', designation: 'Sr Battery Engineer', isLead: false, status: 'INSIDE', gatePassNumber: 'GP-CUS-101-02', checkInTime: '2026-10-11T09:15:00Z' },
+      { id: 'p-1', name: 'David Vance', email: 'dvance@tesla.example', phone: '+1-512-555-0199', designation: 'Director Global Quality', isLead: true, status: 'INSIDE', gatePassNumber: 'GP-CUS-101-01', checkInTime: '2026-10-11T09:15:00Z' },
+      { id: 'p-2', name: 'Sophia Lin', email: 'slin@tesla.example', phone: '+1-512-555-0244', designation: 'Sr Battery Engineer', isLead: false, status: 'INSIDE', gatePassNumber: 'GP-CUS-101-02', checkInTime: '2026-10-11T09:15:00Z' },
     ],
     hostUserId: 'usr-host-1',
     hostName: 'Vikram Mehta (VP OEM Accounts)',
@@ -462,9 +463,9 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     bookingMode: 'DELEGATION',
     leadParticipantName: 'Kenji Takahashi',
     participants: [
-      { id: 'p-3', name: 'Kenji Takahashi', email: 'kenji.takahashi@toyota-asia.com', phone: '+65-6888-9120', designation: 'Chief Engineer', isLead: true, status: 'INSIDE', gatePassNumber: 'GP-CUS-102-01', checkInTime: '2026-10-11T10:05:00Z' },
-      { id: 'p-4', name: 'Hiroshi Sato', email: 'hsato@toyota-asia.com', phone: '+65-6888-9121', designation: 'TPS Specialist', isLead: false, status: 'INSIDE', gatePassNumber: 'GP-CUS-102-02', checkInTime: '2026-10-11T10:05:00Z' },
-      { id: 'p-5', name: 'Naveen Ramaswamy', email: 'naveen.r@toyota-india.com', phone: '+91-9840112999', designation: 'Regional Procurement Head', isLead: false, status: 'ARRIVED', gatePassNumber: 'GP-CUS-102-03' },
+      { id: 'p-3', name: 'Kenji Takahashi', email: 'kenji.takahashi@toyota-asia.example', phone: '+65-6888-9120', designation: 'Chief Engineer', isLead: true, status: 'INSIDE', gatePassNumber: 'GP-CUS-102-01', checkInTime: '2026-10-11T10:05:00Z' },
+      { id: 'p-4', name: 'Hiroshi Sato', email: 'hsato@toyota-asia.example', phone: '+65-6888-9121', designation: 'TPS Specialist', isLead: false, status: 'INSIDE', gatePassNumber: 'GP-CUS-102-02', checkInTime: '2026-10-11T10:05:00Z' },
+      { id: 'p-5', name: 'Naveen Ramaswamy', email: 'naveen.r@toyota-india.example', phone: '+91-9840112999', designation: 'Regional Procurement Head', isLead: false, status: 'ARRIVED', gatePassNumber: 'GP-CUS-102-03' },
     ],
     hostUserId: 'usr-host-2',
     hostName: 'Suresh Babu (VP Operations)',
@@ -515,7 +516,7 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     bookingMode: 'RESERVED',
     leadParticipantName: 'Elena Rostova',
     participants: [
-      { id: 'p-6', name: 'Elena Rostova', email: 'elena.rostova@bosch.de', phone: '+49-711-811-0', designation: 'Lead Auditor', isLead: true, status: 'SCHEDULED' },
+      { id: 'p-6', name: 'Elena Rostova', email: 'elena.rostova@bosch.example', phone: '+49-711-811-0', designation: 'Lead Auditor', isLead: true, status: 'SCHEDULED' },
     ],
     hostUserId: 'usr-host-3',
     hostName: 'Karthik Raja (Account Lead)',
@@ -568,7 +569,7 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     bookingMode: 'RESERVED',
     leadParticipantName: 'Marcus Weber',
     participants: [
-      { id: 'p-7', name: 'Marcus Weber', email: 'marcus.weber@bmwgroup.com', phone: '+49-89-382-019', designation: 'Head of Chassis Procurement', isLead: true, status: 'SCHEDULED' },
+      { id: 'p-7', name: 'Marcus Weber', email: 'marcus.weber@bmwgroup.example', phone: '+49-89-382-019', designation: 'Head of Chassis Procurement', isLead: true, status: 'SCHEDULED' },
     ],
     hostUserId: 'usr-host-4',
     hostName: 'Ananya Sharma (Senior Director Key Accounts)',
@@ -616,7 +617,7 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     bookingMode: 'RESERVED',
     leadParticipantName: 'Liam O’Connor',
     participants: [
-      { id: 'p-8', name: 'Liam O’Connor', email: 'loconnor@tesla.com', phone: '+1-512-555-0988', designation: 'Robotics Integration Specialist', isLead: true, status: 'CHECKED_OUT', gatePassNumber: 'GP-CUS-105-01', checkInTime: '2026-10-10T08:30:00Z', checkOutTime: '2026-10-10T16:45:00Z' },
+      { id: 'p-8', name: 'Liam O’Connor', email: 'loconnor@tesla.example', phone: '+1-512-555-0988', designation: 'Robotics Integration Specialist', isLead: true, status: 'CHECKED_OUT', gatePassNumber: 'GP-CUS-105-01', checkInTime: '2026-10-10T08:30:00Z', checkOutTime: '2026-10-10T16:45:00Z' },
     ],
     hostUserId: 'usr-host-1',
     hostName: 'Vikram Mehta (VP OEM Accounts)',
@@ -673,7 +674,7 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     bookingMode: 'RESERVED',
     leadParticipantName: 'Arun Deshmukh',
     participants: [
-      { id: 'p-9', name: 'Arun Deshmukh', email: 'arun.deshmukh@cummins.com', phone: '+91-20-6706-0000', designation: 'Senior Supply Manager', isLead: true, status: 'SCHEDULED' },
+      { id: 'p-9', name: 'Arun Deshmukh', email: 'arun.deshmukh@cummins.example', phone: '+91-20-6706-0000', designation: 'Senior Supply Manager', isLead: true, status: 'SCHEDULED' },
     ],
     hostUserId: 'usr-host-5',
     hostName: 'Rajesh Varma (Commercial Manager)',
@@ -724,7 +725,7 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     bookingMode: 'RESERVED',
     leadParticipantName: 'Yuki Matsui',
     participants: [
-      { id: 'p-10', name: 'Yuki Matsui', email: 'ymatsui@toyota-asia.com', phone: '+65-6888-9188', designation: 'Plant Safety Director', isLead: true, status: 'SCHEDULED' },
+      { id: 'p-10', name: 'Yuki Matsui', email: 'ymatsui@toyota-asia.example', phone: '+65-6888-9188', designation: 'Plant Safety Director', isLead: true, status: 'SCHEDULED' },
     ],
     hostUserId: 'usr-host-2',
     hostName: 'Suresh Babu (VP Operations)',
@@ -1049,7 +1050,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
       {
         id: `p-${Date.now()}-lead`,
         name: rep?.fullName || 'Lead Representative',
-        email: rep?.email || 'lead@customer.com',
+        email: rep?.email || 'lead@customer.example',
         phone: rep?.phone || '+91-0000000000',
         designation: rep?.designation || 'Lead',
         isLead: true,
@@ -1146,9 +1147,6 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
             <h1 className="text-xl font-black text-slate-900 tracking-tight">
               Customer Management & Delegations
             </h1>
-            <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-800 rounded uppercase tracking-wider">
-              Part 7 Independent Domain
-            </span>
           </div>
           <p className="text-xs text-slate-600 mt-1">
             OEM customer audits, executive delegations, technical reviews, bilateral NDAs, and source-linked Scope 3 GHG travel capture.
@@ -2617,7 +2615,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
             </div>
 
             <div className="mt-4 flex gap-2">
-              <Button size="dense" variant="secondary" leftIcon={<Printer size={14} />} onClick={() => alert('Printing pass...')}>
+              <Button size="dense" variant="secondary" leftIcon={<Printer size={14} />} onClick={() => showToast('Pass sent to the badge printer.', 'info')}>
                 Print Badge
               </Button>
               <Button size="dense" variant="primary" onClick={() => setIsEPassModalOpen(false)}>
@@ -2910,7 +2908,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                   type="email"
                   value={accountEmail}
                   onChange={e => setAccountEmail(e.target.value)}
-                  placeholder="sjenkins@ford.com"
+                  placeholder="sjenkins@ford.example"
                   className="w-full text-xs p-2 border border-slate-200 rounded mt-1"
                 />
               </div>
@@ -2987,7 +2985,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                   required
                   value={repEmail}
                   onChange={e => setRepEmail(e.target.value)}
-                  placeholder="rchandran@customer.com"
+                  placeholder="rchandran@customer.example"
                   className="w-full text-xs p-2 border border-slate-200 rounded mt-1"
                 />
               </div>

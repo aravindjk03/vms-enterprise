@@ -250,6 +250,14 @@ export function useSites() {
   return sites;
 }
 
+/** Title with its reference number underneath: one column instead of two keeps lists narrow. */
+export const titleWithRef = (title: string, ref: string) => (
+  <div style={{ display: 'grid', gap: '2px' }}>
+    <strong style={{ color: colors.slate[900] }}>{title}</strong>
+    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: colors.slate[500] }}>{ref}</span>
+  </div>
+);
+
 export const reference = (v: string) => <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>{v}</span>;
 export const pill = (v: string | null | undefined) => <StatusPill status={v} />;
 export const when = (v: string | null | undefined) => <span style={{ whiteSpace: 'nowrap' }}>{fmt(v)}</span>;

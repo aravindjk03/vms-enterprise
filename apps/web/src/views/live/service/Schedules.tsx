@@ -22,6 +22,7 @@ import {
   Section,
   SelectField,
   TextField,
+  titleWithRef,
   useMutation,
   usePagedList,
   useSites,
@@ -245,14 +246,13 @@ export const SchedulesView: React.FC<{ user: SessionUser; onOpenWorkOrder: (id: 
 
   if (selected) return <ScheduleDetail id={selected} user={user} onBack={() => { setSelected(null); void list.reload(); }} onOpenWorkOrder={onOpenWorkOrder} />;
   const columns: ColumnDef<ScheduleRow>[] = [
-    { key: 'referenceNumber', header: 'Reference', render: r => reference(r.referenceNumber) },
-    { key: 'title', header: 'Schedule', render: r => <strong>{r.title}</strong> },
-    { key: 'frequency', header: 'Recurrence', render: r => describeRule(r) },
-    { key: 'providerName', header: 'Provider' },
-    { key: 'siteName', header: 'Site' },
+    { key: 'title', header: 'Schedule', wrap: true, minWidth: '200px', render: r => titleWithRef(r.title, r.referenceNumber) },
+    { key: 'status', header: 'Status', render: r => pill(r.status) },
+    { key: 'frequency', header: 'Recurrence', wrap: true, minWidth: '160px', render: r => describeRule(r) },
+    { key: 'providerName', header: 'Provider', wrap: true, minWidth: '120px' },
+    { key: 'siteName', header: 'Site', wrap: true, minWidth: '140px' },
     { key: 'occurrences', header: 'Occurrences', align: 'right' },
     { key: 'missed', header: 'Missed', align: 'right' },
-    { key: 'status', header: 'Status', render: r => pill(r.status) },
   ];
   return (
     <div>
@@ -490,18 +490,17 @@ export const ExceptionsView: React.FC<{ user: SessionUser; onOpenWorkOrder: (id:
   const [resolution, setResolution] = useState('');
   const m = useMutation();
   const columns: ColumnDef<ExceptionRow>[] = [
-    { key: 'referenceNumber', header: 'Reference', render: r => reference(r.referenceNumber) },
-    { key: 'exceptionType', header: 'Type', render: r => label(r.exceptionType) },
+    { key: 'exceptionType', header: 'Exception', wrap: true, minWidth: '160px', render: r => titleWithRef(label(r.exceptionType), r.referenceNumber) },
+    { key: 'status', header: 'Status', render: r => pill(r.status) },
     { key: 'severity', header: 'Severity', render: r => pill(r.severity) },
-    { key: 'description', header: 'Description' },
-    { key: 'siteName', header: 'Site' },
+    { key: 'description', header: 'Description', wrap: true, minWidth: '240px' },
+    { key: 'siteName', header: 'Site', wrap: true, minWidth: '140px' },
     {
       key: 'workOrderReference',
       header: 'Work order',
       render: r => (r.workOrderId ? <button type="button" style={{ ...buttonStyle(), padding: '2px 8px' }} onClick={e => { e.stopPropagation(); onOpenWorkOrder(r.workOrderId!); }}>{r.workOrderReference}</button> : '—'),
     },
     { key: 'raisedAt', header: 'Raised', render: r => when(r.raisedAt) },
-    { key: 'status', header: 'Status', render: r => pill(r.status) },
   ];
   return (
     <div>
