@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, RefreshCw, X } from 'lucide-react';
+import { Pagination } from '@vms/ui';
 import { colors, radius, shadows } from '@vms/ui/tokens';
 import { ApiError, apiRequest, type SessionUser } from '../../api/client.js';
 
@@ -169,20 +170,34 @@ export function describeError(err: unknown): string {
   return 'Request failed. Please try again.';
 }
 
+/** Returns `value` once it has stopped changing for `ms` (search boxes fire on every keystroke). */
+export function useDebounced<T>(value: T, ms = 300): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
+}
+
+/** Loads `path`; only the response to the latest request is applied, so slow earlier replies never win. */
 export function useApi<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const latest = useRef(0);
   const load = useCallback(async () => {
     if (!path) return;
+    const seq = ++latest.current;
     setLoading(true);
     setError(null);
     try {
-      setData(await apiRequest<T>(path));
+      const result = await apiRequest<T>(path);
+      if (seq === latest.current) setData(result);
     } catch (err) {
-      setError(describeError(err));
+      if (seq === latest.current) setError(describeError(err));
     } finally {
-      setLoading(false);
+      if (seq === latest.current) setLoading(false);
     }
   }, [path]);
   useEffect(() => {
@@ -191,8 +206,25 @@ export function useApi<T>(path: string | null) {
   return { data, error, loading, reload: load };
 }
 
-export const fmt = (value: string | null | undefined) =>
-  value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Formats an instant in the viewer's time zone; a calendar date ('YYYY-MM-DD') is shown as that same date. */
+export const fmt = (value: string | null | undefined) => {
+  if (!value) return '—';
+  if (DATE_ONLY.test(value)) return fmtDate(value);
+  return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+/** Formats a calendar date without converting it through UTC (which can shift it by a day). */
+export const fmtDate = (value: string | null | undefined) => {
+  if (!value) return '—';
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { dateStyle: 'medium' });
+};
+
+/** Today's date in the viewer's time zone as 'YYYY-MM-DD' (toISOString() would give the UTC date). */
+export const localDateString = (date: Date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export const PageHeader: React.FC<{ title: string; subtitle: string; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '16px' }}>
@@ -287,6 +319,15 @@ interface Option {
 }
 
 const STATUS_FILTERS = ['', 'PENDING', 'APPROVED', 'ON_PREMISES', 'COMPLETED', 'REJECTED', 'CANCELLED'];
+const VISITOR_PAGE_SIZE = 50;
+
+interface GateOption {
+  gateId: string;
+  siteId: string;
+  name: string;
+  gateType: string;
+  isActive: boolean;
+}
 
 export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: string; openRegister?: boolean }> = ({
   user,
@@ -299,17 +340,20 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
   const [showForm, setShowForm] = useState(openRegister);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [gates, setGates] = useState<Array<{ gateId: string; siteId: string; name: string }>>([]);
+  const [gates, setGates] = useState<GateOption[]>([]);
+  const [gateId, setGateId] = useState('');
+  const [page, setPage] = useState(1);
 
   useEffect(() => setStatus(initialStatus), [initialStatus]);
   useEffect(() => setShowForm(openRegister), [openRegister]);
+  useEffect(() => setPage(1), [status, query]);
 
   const path = useMemo(() => {
-    const params = new URLSearchParams({ limit: '100' });
+    const params = new URLSearchParams({ limit: String(VISITOR_PAGE_SIZE), offset: String((page - 1) * VISITOR_PAGE_SIZE) });
     if (status) params.set('status', status);
     if (query) params.set('search', query);
     return `/api/v1/visitors?${params.toString()}`;
-  }, [status, query]);
+  }, [status, query, page]);
   const { data, error, loading, reload } = useApi<{ items: VisitorItem[]; total: number }>(path);
 
   const can = (perm: string) => user.permissions.includes(perm);
@@ -317,8 +361,13 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
 
   useEffect(() => {
     if (!canGate) return;
-    apiRequest<{ items: Array<{ gateId: string; siteId: string; name: string }> }>('/api/v1/gates')
-      .then(r => setGates(r.items))
+    apiRequest<{ items: GateOption[] }>('/api/v1/gates')
+      .then(r => {
+        // Only active gates can record movements; pedestrian gates first, as most visitors walk in.
+        const active = r.items.filter(g => g.isActive).sort((a, b) => Number(b.gateType === 'PEDESTRIAN') - Number(a.gateType === 'PEDESTRIAN'));
+        setGates(active);
+        setGateId(current => current || active[0]?.gateId || '');
+      })
       .catch(() => setGates([]));
   }, [canGate]);
 
@@ -326,12 +375,18 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
     setActionError(null);
     let body: Record<string, unknown> = {};
     if (action === 'check-in' || action === 'check-out') {
-      const gate = gates.find(g => g.siteId === visit.siteId);
-      if (!gate) {
-        setActionError('No active gate is configured for this site.');
+      // The operator's chosen gate when it is at the visit's site; otherwise the site's only active gate.
+      const atSite = gates.filter(g => g.siteId === visit.siteId);
+      const chosen = atSite.find(g => g.gateId === gateId) ?? (atSite.length === 1 ? atSite[0] : undefined);
+      if (!chosen) {
+        setActionError(
+          atSite.length === 0
+            ? `No active gate is configured for ${visit.siteName}.`
+            : `Choose the gate you are working at for ${visit.siteName} in "Recording at gate" above.`
+        );
         return;
       }
-      body = { gateId: gate.gateId };
+      body = { gateId: chosen.gateId };
     }
     setBusyId(visit.id);
     try {
@@ -400,6 +455,18 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
             Search
           </button>
         </form>
+        {canGate && gates.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: colors.slate[600] }}>
+            Recording at gate
+            <select value={gateId} onChange={e => setGateId(e.target.value)} style={{ ...buttonStyle(), padding: '7px 10px' }}>
+              {gates.map(g => (
+                <option key={g.gateId} value={g.gateId}>
+                  {g.name} ({g.gateType === 'PEDESTRIAN' ? 'pedestrian' : g.gateType.toLowerCase().replace(/_/g, ' ')})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <span style={{ fontSize: '12px', color: colors.slate[500] }}>{data ? `${data.total} record(s)` : ''}</span>
       </div>
 
@@ -481,6 +548,11 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
             ))}
           </tbody>
         </table>
+        {data && data.total > VISITOR_PAGE_SIZE && (
+          <div style={{ borderTop: `1px solid ${colors.slate[100]}`, padding: '8px 12px' }}>
+            <Pagination currentPage={page} totalRecords={data.total} pageSize={VISITOR_PAGE_SIZE} onPageChange={setPage} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -626,6 +698,8 @@ const RegisterVisitorForm: React.FC<{ user: SessionUser; onClose: () => void; on
 // Generic read-only live tables
 // ---------------------------------------------------------------------------
 
+const TABLE_PAGE_SIZE = 50;
+
 export interface LiveColumn {
   key: string;
   label: string;
@@ -638,11 +712,14 @@ export const LiveTableView: React.FC<{ title: string; subtitle: string; path: st
   path,
   columns,
 }) => {
-  const { data, error, loading, reload } = useApi<{ items: Array<Record<string, unknown>> }>(path);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [path]);
+  const pagedPath = `${path}${path.includes('?') ? '&' : '?'}limit=${TABLE_PAGE_SIZE}&offset=${(page - 1) * TABLE_PAGE_SIZE}`;
+  const { data, error, loading, reload } = useApi<{ items: Array<Record<string, unknown>>; total?: number }>(pagedPath);
   return (
     <div>
       <PageHeader
-        title={title}
+        title={data?.total !== undefined ? `${title} (${data.total})` : title}
         subtitle={subtitle}
         actions={
           <button type="button" style={buttonStyle()} onClick={() => void reload()}>
@@ -688,6 +765,11 @@ export const LiveTableView: React.FC<{ title: string; subtitle: string; path: st
             ))}
           </tbody>
         </table>
+        {data?.total !== undefined && data.total > TABLE_PAGE_SIZE && (
+          <div style={{ borderTop: `1px solid ${colors.slate[100]}`, padding: '8px 12px' }}>
+            <Pagination currentPage={page} totalRecords={data.total} pageSize={TABLE_PAGE_SIZE} onPageChange={setPage} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,7 +4,14 @@ import { colors, radius, shadows } from '@vms/ui/tokens';
 import { App } from '../App.js';
 import { ApiError, login, logout, probeApi, refreshSession, setSessionLostHandler, type SessionUser } from '../api/client.js';
 
-type Mode = { kind: 'probing' } | { kind: 'demo' } | { kind: 'signed-out'; notice?: string } | { kind: 'live'; user: SessionUser };
+type Mode =
+  | { kind: 'probing' }
+  | { kind: 'demo' }
+  | { kind: 'unreachable' }
+  | { kind: 'signed-out'; notice?: string }
+  | { kind: 'live'; user: SessionUser };
+
+const RETRY_SECONDS = 10;
 
 /**
  * Decides how the console runs:
@@ -13,27 +20,58 @@ type Mode = { kind: 'probing' } | { kind: 'demo' } | { kind: 'signed-out'; notic
  */
 export const Root: React.FC = () => {
   const [mode, setMode] = useState<Mode>({ kind: 'probing' });
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    setSessionLostHandler(() => setMode({ kind: 'signed-out', notice: 'Your session has ended. Please sign in again.' }));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    setSessionLostHandler(() => setMode({ kind: 'signed-out', notice: 'Your session has ended. Please sign in again.' }));
     (async () => {
-      if (!(await probeApi())) {
-        if (!cancelled) setMode({ kind: 'demo' });
-        return;
-      }
+      const backend = await probeApi();
+      if (cancelled) return;
+      if (backend === 'absent') return setMode({ kind: 'demo' });
+      if (backend === 'unreachable') return setMode({ kind: 'unreachable' });
       const user = await refreshSession();
       if (!cancelled) setMode(user ? { kind: 'live', user } : { kind: 'signed-out' });
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
+
+  // While the server is unreachable, check again on a timer as well as on demand.
+  useEffect(() => {
+    if (mode.kind !== 'unreachable') return;
+    const timer = setTimeout(() => setAttempt(a => a + 1), RETRY_SECONDS * 1000);
+    return () => clearTimeout(timer);
+  }, [mode, attempt]);
 
   if (mode.kind === 'probing') {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', color: colors.slate[500] }}>
         <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} aria-label="Loading" />
+      </div>
+    );
+  }
+  if (mode.kind === 'unreachable') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '24px', backgroundColor: colors.slate[50] }}>
+        <div role="alert" style={{ maxWidth: '420px', textAlign: 'center', display: 'grid', gap: '12px', justifyItems: 'center' }}>
+          <AlertTriangle size={28} color={colors.status.warning.fg} aria-hidden="true" />
+          <h1 style={{ margin: 0, fontSize: '18px', color: colors.slate[900] }}>Can't reach the VMS server</h1>
+          <p style={{ margin: 0, fontSize: '14px', color: colors.slate[600], lineHeight: 1.5 }}>
+            The server did not respond. It may be restarting. This page checks again every {RETRY_SECONDS} seconds.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAttempt(a => a + 1)}
+            style={{ padding: '9px 16px', fontSize: '14px', fontWeight: 600, color: '#ffffff', backgroundColor: colors.primary[600], border: 'none', borderRadius: radius.md, cursor: 'pointer' }}
+          >
+            Try again now
+          </button>
+        </div>
       </div>
     );
   }

@@ -10,9 +10,11 @@ import {
   can,
   card,
   ErrorNote,
+  fmtDate,
   FormGrid,
   KeyValues,
   label,
+  localDateString,
   Notice,
   PagedTable,
   pill,
@@ -298,7 +300,7 @@ const ScheduleForm: React.FC<{ onCancel: () => void; onCreated: (id: string) => 
     frequency: 'WEEKLY',
     intervalCount: '1',
     dayOfMonth: '1',
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: localDateString(),
     endDate: '',
     windowStartTime: '08:00',
     durationMinutes: '120',
@@ -422,7 +424,7 @@ const ScheduleDetail: React.FC<{ id: string; user: SessionUser; onBack: () => vo
           </>
         }
       >
-        <KeyValues items={[['Recurrence', describeRule(data)], ['Duration', `${data.durationMinutes} min`], ['Period', `${data.startDate} → ${data.endDate ?? 'open'}`], ['Deliverables', data.deliverables.join('; ') || '—']]} />
+        <KeyValues items={[['Recurrence', describeRule(data)], ['Duration', `${data.durationMinutes} min`], ['Period', `${fmtDate(data.startDate)} → ${data.endDate ? fmtDate(data.endDate) : 'open'}`], ['Deliverables', data.deliverables.join('; ') || '—']]} />
         <p style={{ fontSize: '13px', margin: '10px 0 0' }}>{data.scopeOfWork}</p>
       </Section>
       {data.status === 'ACTIVE' && can(user, 'SERVICE_MANAGE') && (

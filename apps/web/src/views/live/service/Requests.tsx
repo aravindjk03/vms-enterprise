@@ -346,6 +346,10 @@ const RequestDetail: React.FC<{ id: string; user: SessionUser; onBack: () => voi
 
   const isRequester = data.requestedById === user.userId;
   const canDecide = can(user, 'SERVICE_APPROVE') && data.status === 'SUBMITTED' && !isRequester;
+  // A request whose every work order was cancelled or rejected can still be closed by cancelling it.
+  const workStopped =
+    data.status === 'WORK_ORDERED' && (data.workOrders ?? []).length > 0 && data.workOrders.every(w => ['CANCELLED', 'REJECTED'].includes(w.status));
+  const cancellable = ['SUBMITTED', 'APPROVED'].includes(data.status) || workStopped;
   return (
     <div>
       <BackLink onClick={onBack}>Requests</BackLink>
@@ -376,7 +380,7 @@ const RequestDetail: React.FC<{ id: string; user: SessionUser; onBack: () => voi
         {data.prerequisites && <p style={{ fontSize: '13px', margin: '8px 0 0' }}><strong>Prerequisites:</strong> {data.prerequisites}</p>}
       </Section>
 
-      {(canDecide || (data.status === 'SUBMITTED' && isRequester) || (['SUBMITTED', 'APPROVED'].includes(data.status) && (isRequester || can(user, 'SERVICE_MANAGE')))) && (
+      {(canDecide || (data.status === 'SUBMITTED' && isRequester) || (cancellable && (isRequester || can(user, 'SERVICE_MANAGE')))) && (
         <Section title="Decision">
           {data.status === 'SUBMITTED' && isRequester && can(user, 'SERVICE_APPROVE') && (
             <Notice tone="warning">You raised this request, so another approver must decide on it.</Notice>
@@ -389,7 +393,7 @@ const RequestDetail: React.FC<{ id: string; user: SessionUser; onBack: () => voi
                 <button type="button" style={buttonStyle('danger')} disabled={m.busy} onClick={() => void act('reject')}>Reject</button>
               </>
             )}
-            {['SUBMITTED', 'APPROVED'].includes(data.status) && (isRequester || can(user, 'SERVICE_MANAGE')) && (
+            {cancellable && (isRequester || can(user, 'SERVICE_MANAGE')) && (
               <button type="button" style={buttonStyle()} disabled={m.busy} onClick={() => void act('cancel')}>Cancel request</button>
             )}
           </div>

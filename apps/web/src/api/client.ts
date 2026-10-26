@@ -6,7 +6,10 @@
  */
 import type { EnterpriseRole } from '@vms/types';
 
-const API_BASE: string = (import.meta as { env?: Record<string, string | undefined> }).env?.['VITE_API_BASE_URL'] ?? '';
+const VITE_ENV = (import.meta as { env?: Record<string, string | undefined> }).env ?? {};
+const API_BASE: string = VITE_ENV['VITE_API_BASE_URL'] ?? '';
+/** Static demo builds (GitHub Pages, hosted previews) set VITE_DEMO_MODE=true and never look for an API. */
+const DEMO_BUILD = VITE_ENV['VITE_DEMO_MODE'] === 'true';
 
 export interface SessionUser {
   userId: string;
@@ -54,15 +57,33 @@ async function parseError(res: Response): Promise<ApiError> {
   }
 }
 
-/** Returns true when an API backend is reachable (false on static hosting such as GitHub Pages). */
-export async function probeApi(): Promise<boolean> {
+/**
+ * A random key for Idempotency-Key headers. `crypto.randomUUID` exists only on HTTPS and localhost,
+ * so plain-HTTP intranet deployments fall back to `getRandomValues`, which is available everywhere.
+ */
+export function newIdempotencyKey(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Finds out whether this console has a backend:
+ * - 'live': the API answered;
+ * - 'absent': this is a demo build, or the host has no API at all (static hosting answers 404);
+ * - 'unreachable': the API should be there but did not answer (restart, proxy error, network).
+ * A production console must never fall back to sample data just because the server blinked.
+ */
+export async function probeApi(): Promise<'live' | 'absent' | 'unreachable'> {
+  if (DEMO_BUILD) return 'absent';
   try {
     const res = await fetch(`${API_BASE}/api/health`, { credentials: 'same-origin' });
-    if (!res.ok) return false;
+    if (res.status === 404 || res.status === 405) return 'absent';
+    if (!res.ok) return 'unreachable';
     const body = await res.json().catch(() => null);
-    return body?.status === 'ok';
+    return body?.status === 'ok' ? 'live' : 'absent';
   } catch {
-    return false;
+    return 'unreachable';
   }
 }
 
@@ -84,11 +105,18 @@ export function refreshSession(): Promise<SessionUser | null> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'X-Requested-With': 'vms-web' },
-        });
+        const attempt = () =>
+          fetch(`${API_BASE}/api/v1/auth/refresh`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'vms-web' },
+          });
+        let res = await attempt();
+        // 409: another tab rotated the cookie at the same moment; the browser now holds the new one.
+        if (res.status === 409) {
+          await new Promise(resolve => setTimeout(resolve, 250));
+          res = await attempt();
+        }
         if (!res.ok) {
           accessToken = null;
           return null;

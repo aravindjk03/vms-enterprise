@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DataTable, Pagination, type ColumnDef } from '@vms/ui';
 import { colors, radius } from '@vms/ui/tokens';
-import { apiRequest, type SessionUser } from '../../../api/client.js';
-import { buttonStyle, card, describeError, ErrorNote, Field, fmt, inputStyle, StatusPill } from '../LiveViews.js';
+import { apiRequest, newIdempotencyKey, type SessionUser } from '../../../api/client.js';
+import { buttonStyle, card, describeError, ErrorNote, Field, fmt, fmtDate, inputStyle, localDateString, StatusPill, useDebounced } from '../LiveViews.js';
 
-export { buttonStyle, card, describeError, ErrorNote, Field, fmt, inputStyle, StatusPill };
+export { buttonStyle, card, describeError, ErrorNote, Field, fmt, fmtDate, inputStyle, localDateString, StatusPill };
 
 export const can = (user: SessionUser, permission: string) => user.permissions.includes(permission);
 
@@ -27,32 +27,38 @@ export const SERVICE_TYPES = [
 ];
 export const PRIORITIES = ['LOW', 'STANDARD', 'HIGH', 'CRITICAL'];
 
-/** Server-side paged list: page/filters drive the query string; the server does filtering and paging. */
+/**
+ * Server-side paged list: page/filters drive the query string; the server does filtering and paging.
+ * Filters settle for a moment before a request goes out (typing in search), a filter change starts
+ * again at page 1 in the same render, and only the latest response is applied.
+ */
 export function usePagedList<T>(basePath: string, filters: Record<string, string | undefined>, pageSize = 25) {
-  const [page, setPage] = useState(1);
+  const filterKey = useDebounced(JSON.stringify(filters), 300);
+  const [paging, setPaging] = useState({ key: filterKey, page: 1 });
+  const page = paging.key === filterKey ? paging.page : 1;
+  const setPage = useCallback((next: number) => setPaging({ key: filterKey, page: next }), [filterKey]);
   const [data, setData] = useState<{ items: T[]; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const filterKey = JSON.stringify(filters);
-
-  useEffect(() => setPage(1), [filterKey]);
+  const latest = useRef(0);
 
   const path = useMemo(() => {
     const params = new URLSearchParams({ limit: String(pageSize), offset: String((page - 1) * pageSize) });
-    for (const [k, v] of Object.entries(filters)) if (v) params.set(k, v);
+    for (const [k, v] of Object.entries(JSON.parse(filterKey) as Record<string, string | undefined>)) if (v) params.set(k, v);
     return `${basePath}?${params.toString()}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basePath, filterKey, page, pageSize]);
 
   const reload = useCallback(async () => {
+    const seq = ++latest.current;
     setLoading(true);
     setError(null);
     try {
-      setData(await apiRequest<{ items: T[]; total: number }>(path));
+      const result = await apiRequest<{ items: T[]; total: number }>(path);
+      if (seq === latest.current) setData(result);
     } catch (err) {
-      setError(describeError(err));
+      if (seq === latest.current) setError(describeError(err));
     } finally {
-      setLoading(false);
+      if (seq === latest.current) setLoading(false);
     }
   }, [path]);
 
@@ -167,14 +173,14 @@ export const BackLink: React.FC<{ onClick: () => void; children: React.ReactNode
 export function useMutation() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [key, setKey] = useState(() => crypto.randomUUID());
+  const [key, setKey] = useState(() => newIdempotencyKey());
   const run = useCallback(
     async <T,>(path: string, body: unknown, opts: { idempotent?: boolean } = {}): Promise<T | null> => {
       setBusy(true);
       setError(null);
       try {
         const result = await apiRequest<T>(path, { method: 'POST', body, idempotencyKey: opts.idempotent ? key : undefined });
-        setKey(crypto.randomUUID());
+        setKey(newIdempotencyKey());
         return result;
       } catch (err) {
         setError(describeError(err));

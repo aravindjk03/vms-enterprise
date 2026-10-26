@@ -103,6 +103,50 @@ export interface AppProps {
 }
 
 /** Visitor routes that map onto a status filter of the live register. */
+/** Live screens per menu group, each shown when the user holds any of the listed permissions. */
+const LIVE_NAV: Record<string, Array<{ route: string; label: string; anyOf: string[] }>> = {
+  dashboard: [{ route: '/dashboard', label: 'Executive Dashboard', anyOf: [] }],
+  visitors: [
+    { route: '/visitors', label: 'Visitor Register', anyOf: ['VISITOR_READ'] },
+    { route: '/visitors/new', label: 'Register Visitor', anyOf: ['VISITOR_WRITE'] },
+    { route: '/visitors/approvals', label: 'Pending Approvals', anyOf: ['VISITOR_APPROVE'] },
+    { route: '/visitors/expected', label: 'Expected (Approved)', anyOf: ['VISITOR_READ'] },
+    { route: '/visitors/inside', label: 'Currently Inside', anyOf: ['VISITOR_READ'] },
+    { route: '/visitors/completed', label: 'Completed Visits', anyOf: ['VISITOR_READ'] },
+    { route: '/visitors/cancelled', label: 'Cancelled Visits', anyOf: ['VISITOR_READ'] },
+  ],
+  customers: [{ route: '/customers/accounts', label: 'Customer Accounts', anyOf: ['CUSTOMER_READ'] }],
+  contractors: [{ route: '/contractors/companies', label: 'Contractor Companies', anyOf: ['CONTRACTOR_READ'] }],
+  admin: [{ route: '/admin/audit', label: 'Audit Logs', anyOf: ['AUDIT_LOG_READ'] }],
+};
+
+/** Roles that see the sample-data preview screens of a group; tenant-wide admins see what super admins see. */
+function holdsAnyRole(user: SessionUser, roles: string[]): boolean {
+  return [user.role, ...user.roles].some(r => roles.includes(r) || (r === 'ORGANIZATION_ADMIN' && roles.includes('SUPER_ADMIN')));
+}
+
+function liveNavDomains<D extends { id: string; roles: string[]; items: Array<{ route: string; label: string }> }>(
+  domains: D[],
+  user: SessionUser
+): Array<D & { preview?: boolean }> {
+  const live: Array<D & { preview?: boolean }> = [];
+  const preview: Array<D & { preview?: boolean }> = [];
+  for (const d of domains) {
+    const liveItems =
+      d.id === 'services'
+        ? serviceNavFor(user)
+        : (LIVE_NAV[d.id] ?? []).filter(i => i.anyOf.length === 0 || i.anyOf.some(p => user.permissions.includes(p)));
+    if (liveItems.length) live.push({ ...d, items: liveItems.map(({ route, label }) => ({ route, label })) });
+    if (d.id === 'services') continue;
+    const liveRoutes = new Set((LIVE_NAV[d.id] ?? []).map(i => i.route));
+    const sampleItems = d.items.filter(i => !liveRoutes.has(i.route) && !(d.id === 'visitors' && i.route in LIVE_VISITOR_FILTERS));
+    if (sampleItems.length && holdsAnyRole(user, d.roles)) {
+      preview.push({ ...d, id: `${d.id}-preview`, items: sampleItems, preview: true });
+    }
+  }
+  return [...live, ...preview];
+}
+
 const LIVE_VISITOR_FILTERS: Record<string, string> = {
   '/visitors/approvals': 'PENDING',
   '/visitors/expected': 'APPROVED',
@@ -473,15 +517,14 @@ export const App: React.FC<AppProps> = ({
     },
   ];
 
-  // Signed in: the Service module's menu comes from the permissions the server granted this user.
-  const navDomains = session
-    ? baseNavDomains.map((d) => (d.id === 'services' ? { ...d, items: serviceNavFor(session.user) } : d))
-    : baseNavDomains;
+  // Signed in: menus come from the permissions the server granted (all of the user's roles, not only
+  // the primary one). Screens backed by live data come first; screens that still show sample data are
+  // grouped under "Preview" so they are never mistaken for real records.
+  type NavDomain = (typeof baseNavDomains)[number] & { preview?: boolean };
+  const navDomains: NavDomain[] = session ? liveNavDomains(baseNavDomains, session.user) : baseNavDomains;
 
-  // Role-aware visibility filtering (Section 6). Live Service visibility is permission-driven.
-  const visibleDomains = navDomains.filter((d) =>
-    session && d.id === 'services' ? d.items.length > 0 : d.roles.includes(activeRole)
-  );
+  // Demo build: role-aware visibility for the persona chosen in the role switcher.
+  const visibleDomains = session ? navDomains : navDomains.filter((d) => d.roles.includes(activeRole));
 
   // Breadcrumbs Generator
   const getBreadcrumbs = () => {
@@ -609,12 +652,12 @@ export const App: React.FC<AppProps> = ({
     if (activeRoute.startsWith('/services')) {
       return <ServiceModule route={activeRoute} user={user} navigate={setActiveRoute} />;
     }
-    if (activeRoute.startsWith('/visitors')) {
+    if (activeRoute === '/visitors' || activeRoute === '/visitors/new' || activeRoute in LIVE_VISITOR_FILTERS) {
       return (
         <LiveVisitorsView
           user={user}
           initialStatus={LIVE_VISITOR_FILTERS[activeRoute] ?? ''}
-          openRegister={activeRoute === '/visitors/new' || activeRoute === '/visitors/walk-in'}
+          openRegister={activeRoute === '/visitors/new'}
         />
       );
     }
@@ -658,7 +701,7 @@ export const App: React.FC<AppProps> = ({
         <LiveTableView
           title="Audit ledger"
           subtitle="Append-only record of sign-ins and every state change (cannot be edited or deleted)."
-          path="/api/v1/audit-logs?limit=200"
+          path="/api/v1/audit-logs"
           columns={[
             { key: 'timestamp', label: 'Time', render: renderDate },
             { key: 'action', label: 'Action' },
@@ -1470,11 +1513,18 @@ export const App: React.FC<AppProps> = ({
         >
           {/* Navigation Items List */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-            {visibleDomains.map((domain) => {
+            {visibleDomains.map((domain, index) => {
               const isDomainActive = domain.items.some((item) => item.route === activeRoute);
+              const firstPreview = domain.preview && !visibleDomains[index - 1]?.preview;
 
               return (
                 <div key={domain.id} style={{ marginBottom: '4px' }}>
+                  {firstPreview && !isSidebarCollapsed && (
+                    <div style={{ margin: '14px 10px 6px', paddingTop: '10px', borderTop: `1px solid ${colors.slate[200]}` }}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: colors.slate[500] }}>Preview</div>
+                      <div style={{ fontSize: '11px', color: colors.slate[500], marginTop: '2px' }}>Sample data, not connected yet</div>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => {

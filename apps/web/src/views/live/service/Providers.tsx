@@ -9,6 +9,7 @@ import {
   buttonStyle,
   can,
   ErrorNote,
+  fmtDate,
   FormGrid,
   KeyValues,
   label,
@@ -219,7 +220,7 @@ const ProviderDetail: React.FC<{ id: string; user: SessionUser; onBack: () => vo
             ['Legal name', data.legalName],
             ['Internal owner', data.internalOwnerName],
             ['Agreement', data.agreementReference],
-            ['Valid', `${data.effectiveFrom ?? '—'} → ${data.effectiveTo ?? 'open'}`],
+            ['Valid', `${fmtDate(data.effectiveFrom)} → ${data.effectiveTo ? fmtDate(data.effectiveTo) : 'open'}`],
             ['Approved categories', data.categories.map(label).join(', ')],
             ['Authorized sites', data.sites.map(s => s.name).join(', ') || 'None (cannot receive work)'],
           ]}
@@ -351,7 +352,7 @@ const TechnicianDetail: React.FC<{ id: string; onBack: () => void }> = ({ id, on
       </div>
       <Section title="Profile">
         {data.isContractorWorker && <Notice>This person also has a contractor-worker relationship (vendor {data.contractorVendorCode}). The two relationships are kept separate; the person record is shared.</Notice>}
-        <KeyValues items={[['Provider', data.providerName], ['Certification', data.certificationLevel], ['Badge', data.badgeId], ['Relationship valid until', data.effectiveTo ?? 'open']]} />
+        <KeyValues items={[['Provider', data.providerName], ['Certification', data.certificationLevel], ['Badge', data.badgeId], ['Relationship valid until', data.effectiveTo ? fmtDate(data.effectiveTo) : 'open']]} />
       </Section>
       <Section title="Assignments">
         {data.assignments.length === 0 ? (
