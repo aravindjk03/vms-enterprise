@@ -341,7 +341,7 @@ export const TransactionFormView: React.FC<{
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
           gap: '12px',
           padding: '12px 16px',
           backgroundColor: colors.slate[50],
@@ -371,7 +371,7 @@ export const TransactionFormView: React.FC<{
       {/* 3. SECTION 1: OPERATIONAL VISITOR INFORMATION */}
       {(!isMultiStep || activeStep === 1) && (
         <Card title="1. Operational Visitor & Visit Details">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '16px' }}>
             <Input
               label="Visitor Full Name"
               isRequired
@@ -454,7 +454,7 @@ export const TransactionFormView: React.FC<{
       {/* 5. SECTION: COMPLIANCE DOCUMENTS & KYC */}
       {(!isMultiStep || activeStep === 3) && (
         <Card title="2. Mandatory Compliance & Verification Documents" subtitle="Government KYC, Non-Disclosure Agreement (NDA) & Safety Induction">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
             <FileUploader
               label="Government Identification (Aadhaar / Passport / DL)"
               helperText="PDF or scanned photo (Max 10MB)"
@@ -481,7 +481,7 @@ export const TransactionFormView: React.FC<{
       {(!isMultiStep || activeStep === 4) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <Card title="3. Final Review & Approvals Governance" subtitle="Host approval dispatch and immutable transaction ledger">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', fontSize: typography.fontSize.xs.size }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '12px', fontSize: typography.fontSize.xs.size }}>
               <div>
                 <span style={{ color: colors.slate[500] }}>Visitor:</span>
                 <div style={{ fontWeight: 700 }}>{visitorName || '—'}</div>

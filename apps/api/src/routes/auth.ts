@@ -10,6 +10,7 @@ import { verifyPasswordAsync } from '../security/passwords.js';
 import { hashRefreshToken, issueAccessToken, newRefreshToken } from '../security/tokens.js';
 
 const REFRESH_COOKIE = 'vms_rt';
+const SESSION_HINT_COOKIE = 'vms_session';
 const REFRESH_PATH = '/api/v1/auth';
 const INVALID_LOGIN = 'Invalid credentials. Please verify your login details and try again.';
 
@@ -29,16 +30,17 @@ function readCookie(request: FastifyRequest, name: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Sets the refresh cookie (HttpOnly, auth path only) plus a readable hint cookie that carries no
+ * secret: it only tells the console that a session may exist, so a signed-out page load does not
+ * send a refresh request that is bound to fail.
+ */
 function setRefreshCookie(reply: FastifyReply, token: string, maxAgeSeconds: number, secure: boolean): void {
-  const attrs = [
-    `${REFRESH_COOKIE}=${encodeURIComponent(token)}`,
-    `Path=${REFRESH_PATH}`,
-    `Max-Age=${maxAgeSeconds}`,
-    'HttpOnly',
-    'SameSite=Strict',
-  ];
-  if (secure) attrs.push('Secure');
-  reply.header('Set-Cookie', attrs.join('; '));
+  const tail = [`Max-Age=${maxAgeSeconds}`, 'SameSite=Strict', ...(secure ? ['Secure'] : [])];
+  reply.header('Set-Cookie', [
+    [`${REFRESH_COOKIE}=${encodeURIComponent(token)}`, `Path=${REFRESH_PATH}`, 'HttpOnly', ...tail].join('; '),
+    [`${SESSION_HINT_COOKIE}=${token ? '1' : ''}`, 'Path=/', ...tail].join('; '),
+  ]);
 }
 
 function clearRefreshCookie(reply: FastifyReply, secure: boolean): void {

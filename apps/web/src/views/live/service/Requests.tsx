@@ -100,7 +100,7 @@ export const ServiceDashboard: React.FC<{ go: (route: string) => void }> = ({ go
         }
       />
       <ErrorNote error={error} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(170px, 100%), 1fr))', gap: '12px', marginBottom: '12px' }}>
         {tiles.map(([title, key, route]) => (
           <button
             key={key}
@@ -115,7 +115,7 @@ export const ServiceDashboard: React.FC<{ go: (route: string) => void }> = ({ go
           </button>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '12px' }}>
         <Distribution title="Work orders by category" rows={data?.byCategory ?? []} />
         <Distribution title="Work orders by provider" rows={data?.byProvider ?? []} />
         <Distribution title="Work orders by site" rows={data?.bySite ?? []} />

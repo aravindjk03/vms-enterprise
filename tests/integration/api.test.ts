@@ -252,6 +252,12 @@ describe('API + PostgreSQL integration', { skip: !ADMIN_URL && 'INTEGRATION_DATA
     const session = await login('GLOBAL-MFG', 'host.mary', PASSWORDS.host);
     const csrf = { 'x-requested-with': 'vms-web' };
 
+    // The refresh token stays HttpOnly; only a secret-free hint is readable by the console.
+    const raw = await app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { tenantCode: 'GLOBAL-MFG', username: 'host.mary', password: PASSWORDS.host } });
+    const cookies = ([] as string[]).concat(raw.headers['set-cookie'] as string | string[]);
+    assert.ok(cookies.some(c => c.startsWith('vms_rt=') && c.includes('HttpOnly')), 'refresh cookie is HttpOnly');
+    assert.ok(cookies.some(c => c.startsWith('vms_session=1;') && !c.includes('HttpOnly')), 'session hint is readable');
+
     const noCsrf = await app.inject({ method: 'POST', url: '/api/v1/auth/refresh', headers: { cookie: session.cookie } });
     assert.equal(noCsrf.statusCode, 403);
 

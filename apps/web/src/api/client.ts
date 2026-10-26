@@ -100,6 +100,11 @@ export async function login(tenantCode: string, username: string, password: stri
   return body.user;
 }
 
+/** The API sets a readable `vms_session` hint next to the HttpOnly refresh cookie. */
+export function mightHaveSession(): boolean {
+  return document.cookie.split(';').some(c => c.trim().startsWith('vms_session=1'));
+}
+
 /** Restores a session from the refresh cookie; resolves null when there is none. */
 export function refreshSession(): Promise<SessionUser | null> {
   if (!refreshInFlight) {

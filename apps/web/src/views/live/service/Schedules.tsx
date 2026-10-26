@@ -192,7 +192,7 @@ export const ServiceCalendar: React.FC<{ onOpenWorkOrder: (id: string) => void }
                 >
                   <strong>{new Date(i.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</strong> {i.title}
                   {view !== 'month' && (
-                    <span style={{ display: 'block', color: colors.slate[500] }}>
+                    <span style={{ display: 'block', color: colors.slate[500], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {i.providerName} · {i.technicians.length ? i.technicians.map(t => t.name).join(', ') : 'unassigned'} · {label(i.status)}
                     </span>
                   )}

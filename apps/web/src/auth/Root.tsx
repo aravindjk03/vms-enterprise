@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
 import { colors, radius, shadows } from '@vms/ui/tokens';
 import { App } from '../App.js';
-import { ApiError, login, logout, probeApi, refreshSession, setSessionLostHandler, type SessionUser } from '../api/client.js';
+import { ApiError, login, logout, mightHaveSession, probeApi, refreshSession, setSessionLostHandler, type SessionUser } from '../api/client.js';
 
 type Mode =
   | { kind: 'probing' }
@@ -33,7 +33,8 @@ export const Root: React.FC = () => {
       if (cancelled) return;
       if (backend === 'absent') return setMode({ kind: 'demo' });
       if (backend === 'unreachable') return setMode({ kind: 'unreachable' });
-      const user = await refreshSession();
+      // Without the session hint there is nothing to restore: go straight to sign-in.
+      const user = mightHaveSession() ? await refreshSession() : null;
       if (!cancelled) setMode(user ? { kind: 'live', user } : { kind: 'signed-out' });
     })();
     return () => {

@@ -220,7 +220,14 @@ const ProviderDetail: React.FC<{ id: string; user: SessionUser; onBack: () => vo
             ['Legal name', data.legalName],
             ['Internal owner', data.internalOwnerName],
             ['Agreement', data.agreementReference],
-            ['Valid', `${fmtDate(data.effectiveFrom)} → ${data.effectiveTo ? fmtDate(data.effectiveTo) : 'open'}`],
+            [
+              'Valid',
+              data.effectiveFrom
+                ? `${fmtDate(data.effectiveFrom)} → ${data.effectiveTo ? fmtDate(data.effectiveTo) : 'no end date'}`
+                : data.effectiveTo
+                  ? `Until ${fmtDate(data.effectiveTo)}`
+                  : 'No validity period set',
+            ],
             ['Approved categories', data.categories.map(label).join(', ')],
             ['Authorized sites', data.sites.map(s => s.name).join(', ') || 'None (cannot receive work)'],
           ]}

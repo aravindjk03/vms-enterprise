@@ -1,0 +1,9 @@
+/*
+ * Phone and small-tablet adjustments for screens laid out with inline styles. An !important rule in a
+ * stylesheet overrides an inline style, so multi-column layouts can stack without restructuring them.
+ */
+@media (max-width: 900px) {
+  .vms-stack-narrow {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

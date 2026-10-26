@@ -283,7 +283,7 @@ export const LiveKpiStrip: React.FC = () => {
         </button>
       </div>
       <ErrorNote error={error} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: '12px' }}>
         {tiles.map(([label, key]) => (
           <div key={key} style={{ border: `1px solid ${colors.slate[100]}`, borderRadius: radius.md, padding: '12px', backgroundColor: colors.slate[50] }}>
             <div style={{ fontSize: '11px', fontWeight: 600, color: colors.slate[500], textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
@@ -586,9 +586,16 @@ export const inputStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
 };
 
-export const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+export const Field: React.FC<{ label: string; required?: boolean; children: React.ReactNode }> = ({ label, required, children }) => (
   <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontWeight: 600, color: colors.slate[700] }}>
-    {label}
+    <span>
+      {label}
+      {required && (
+        <span aria-hidden="true" style={{ color: colors.status.danger.fg, marginLeft: '3px' }}>
+          *
+        </span>
+      )}
+    </span>
     {children}
   </label>
 );
@@ -660,7 +667,7 @@ const RegisterVisitorForm: React.FC<{ user: SessionUser; onClose: () => void; on
         </button>
       </div>
       <ErrorNote error={error} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '12px' }}>
         <Field label="First name">
           <input style={inputStyle} value={form.firstName} onChange={set('firstName')} required maxLength={100} />
         </Field>

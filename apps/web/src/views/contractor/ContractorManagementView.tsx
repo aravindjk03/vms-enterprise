@@ -971,33 +971,46 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
         }}
       >
         {[
-          { key: 'DASHBOARD', label: '1. Dashboard', icon: <BarChart3 size={15} /> },
-          { key: 'COMPANIES', label: '2. Companies', icon: <Building2 size={15} /> },
-          { key: 'CONTRACTS', label: '3. Contracts', icon: <FileSignature size={15} /> },
-          { key: 'WORK_ORDERS', label: '4. Work Orders', icon: <Briefcase size={15} /> },
-          { key: 'WORKER_DIRECTORY', label: '5. Worker Directory', icon: <Users size={15} /> },
-          { key: 'RETURNING_WORKERS', label: '6. Returning Workers', icon: <UserCheck size={15} /> },
-          { key: 'ASSIGNMENTS', label: '7. Assignments', icon: <Layers size={15} /> },
-          { key: 'COMPLIANCE', label: '8. Compliance', icon: <ShieldCheck size={15} /> },
-          { key: 'DOCUMENT_VERIFICATION', label: '9. Documents', icon: <FileCheck size={15} /> },
-          { key: 'TRAINING_RECORDS', label: '10. Training', icon: <GraduationCap size={15} /> },
-          { key: 'SAFETY_INDUCTION', label: '11. Inductions', icon: <Shield size={15} /> },
-          { key: 'QUALIFICATIONS', label: '12. Qualifications', icon: <Award size={15} /> },
-          { key: 'FITNESS_MEDICAL', label: '13. Medical Fitness', icon: <HeartPulse size={15} /> },
-          { key: 'PERMITS', label: '14. Permits', icon: <Flame size={15} /> },
-          { key: 'CURRENTLY_ON_SITE', label: '15. Currently On Site', icon: <Activity size={15} /> },
-          { key: 'DAILY_ATTENDANCE', label: '16. Attendance Ledger', icon: <Clock size={15} /> },
-          { key: 'EXPECTED_WORKFORCE', label: '17. Expected Workforce', icon: <Calendar size={15} /> },
-          { key: 'EXPIRING_DOCUMENTS', label: '18. Expiring Alerts', icon: <AlertTriangle size={15} /> },
-          { key: 'RESTRICTED_WORKERS', label: '19. Restricted Workers', icon: <BadgeAlert size={15} /> },
-          { key: 'CONTRACTOR_TRANSPORT', label: '20. Transport & Mobility', icon: <Bus size={15} /> },
-          { key: 'ESG_TRACEABILITY', label: '21. ESG Traceability', icon: <Leaf size={15} /> },
-          { key: 'REPORTS', label: '22. Analytics & Reports', icon: <BarChart3 size={15} /> },
+          { key: 'DASHBOARD', label: 'Dashboard', icon: <BarChart3 size={15} /> },
+          { key: 'COMPANIES', label: 'Companies', icon: <Building2 size={15} /> },
+          { key: 'CONTRACTS', label: 'Contracts', icon: <FileSignature size={15} /> },
+          { key: 'WORK_ORDERS', label: 'Work Orders', icon: <Briefcase size={15} /> },
+          { key: 'WORKER_DIRECTORY', label: 'Worker Directory', icon: <Users size={15} /> },
+          { key: 'RETURNING_WORKERS', label: 'Returning Workers', icon: <UserCheck size={15} /> },
+          { key: 'ASSIGNMENTS', label: 'Assignments', icon: <Layers size={15} /> },
+          { key: 'COMPLIANCE', label: 'Compliance', icon: <ShieldCheck size={15} /> },
+          { key: 'DOCUMENT_VERIFICATION', label: 'Documents', icon: <FileCheck size={15} /> },
+          { key: 'TRAINING_RECORDS', label: 'Training', icon: <GraduationCap size={15} /> },
+          { key: 'SAFETY_INDUCTION', label: 'Inductions', icon: <Shield size={15} /> },
+          { key: 'QUALIFICATIONS', label: 'Qualifications', icon: <Award size={15} /> },
+          { key: 'FITNESS_MEDICAL', label: 'Medical Fitness', icon: <HeartPulse size={15} /> },
+          { key: 'PERMITS', label: 'Permits', icon: <Flame size={15} /> },
+          { key: 'CURRENTLY_ON_SITE', label: 'Currently On Site', icon: <Activity size={15} /> },
+          { key: 'DAILY_ATTENDANCE', label: 'Attendance Ledger', icon: <Clock size={15} /> },
+          { key: 'EXPECTED_WORKFORCE', label: 'Expected Workforce', icon: <Calendar size={15} /> },
+          { key: 'EXPIRING_DOCUMENTS', label: 'Expiring Alerts', icon: <AlertTriangle size={15} /> },
+          { key: 'RESTRICTED_WORKERS', label: 'Restricted Workers', icon: <BadgeAlert size={15} /> },
+          { key: 'CONTRACTOR_TRANSPORT', label: 'Transport & Mobility', icon: <Bus size={15} /> },
+          { key: 'ESG_TRACEABILITY', label: 'ESG Traceability', icon: <Leaf size={15} /> },
+          { key: 'REPORTS', label: 'Analytics & Reports', icon: <BarChart3 size={15} /> },
         ].map((tab) => {
           const isActive = activeSubView === tab.key;
           return (
             <button
               key={tab.key}
+              type="button"
+              aria-current={isActive ? 'page' : undefined}
+              ref={
+                isActive
+                  ? (el) => {
+                      // Keep the active pill visible by scrolling the strip sideways only (never the page).
+                      const strip = el?.parentElement;
+                      if (!el || !strip) return;
+                      const left = el.offsetLeft - strip.offsetLeft;
+                      if (left < strip.scrollLeft || left + el.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = Math.max(0, left - 16);
+                    }
+                  : undefined
+              }
               onClick={() => handleNavigate(tab.key as ContractorSubView)}
               style={{
                 display: 'flex',
@@ -1012,6 +1025,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
                 border: `1px solid ${isActive ? colors.primary[600] : colors.slate[200]}`,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
                 transition: 'all 0.15s ease',
               }}
             >
@@ -1023,7 +1037,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
       </div>
 
       {/* 3. Executive KPI Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 1fr))', gap: '16px' }}>
         <Card style={{ padding: '16px', borderLeft: `4px solid ${colors.primary[500]}` }}>
           <div style={{ fontSize: fs.xs, color: colors.slate[500], fontWeight: typography.fontWeight.medium }}>
             Active Companies
@@ -1094,7 +1108,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
             type="system"
           />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(400px, 100%), 1fr))', gap: '20px' }}>
             <Card style={{ padding: '20px' }}>
               <h3 style={{ fontSize: fs.md, fontWeight: typography.fontWeight.bold, margin: '0 0 12px 0' }}>
                 Active Contractor Work Orders
@@ -1748,7 +1762,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Vendor Code (Optional)</label>
               <Input
@@ -1772,7 +1786,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Primary Contact Person</label>
               <Input
@@ -1790,7 +1804,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Insurance Policy Number</label>
               <Input
@@ -1841,7 +1855,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Start Date</label>
               <Input
@@ -1900,7 +1914,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Work Location</label>
               <Input
@@ -1962,7 +1976,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Trade Skill</label>
               <Input
@@ -2029,7 +2043,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               options={workOrders.map((wo) => ({ value: wo.workOrderId, label: `${wo.workOrderNumber}: ${wo.title}` }))}
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Entry Turnstile / Gate</label>
               <Select
@@ -2056,7 +2070,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Distance (km)</label>
               <Input
@@ -2103,7 +2117,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               type="system"
             />
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Corrected Entry Time</label>
               <Input

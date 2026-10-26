@@ -117,7 +117,7 @@ export const Section: React.FC<{ title: string; actions?: React.ReactNode; child
 );
 
 export const KeyValues: React.FC<{ items: Array<[string, React.ReactNode]> }> = ({ items }) => (
-  <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px 16px', margin: 0 }}>
+  <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px 16px', margin: 0 }}>
     {items.map(([k, v]) => (
       <div key={k}>
         <dt style={{ fontSize: '11px', fontWeight: 600, color: colors.slate[500], textTransform: 'uppercase', letterSpacing: '0.04em' }}>{k}</dt>
@@ -202,7 +202,7 @@ export const SelectField: React.FC<{
   placeholder?: string;
   required?: boolean;
 }> = ({ label: l, value, onChange, options, placeholder, required }) => (
-  <Field label={l}>
+  <Field label={l} required={required}>
     <select style={inputStyle} value={value} onChange={e => onChange(e.target.value)} required={required}>
       <option value="">{placeholder ?? (required ? 'Select…' : 'Any / not specified')}</option>
       {options.map(o => (
@@ -224,7 +224,7 @@ export const TextField: React.FC<{
   multiline?: boolean;
   placeholder?: string;
 }> = ({ label: l, value, onChange, required, type = 'text', maxLength, multiline, placeholder }) => (
-  <Field label={l}>
+  <Field label={l} required={required}>
     {multiline ? (
       <textarea style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' }} value={value} onChange={e => onChange(e.target.value)} required={required} maxLength={maxLength} placeholder={placeholder} />
     ) : (
@@ -234,7 +234,7 @@ export const TextField: React.FC<{
 );
 
 export const FormGrid: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>{children}</div>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '12px' }}>{children}</div>
 );
 
 export interface SiteOption {

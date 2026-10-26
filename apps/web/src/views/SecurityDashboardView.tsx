@@ -56,7 +56,7 @@ export const SecurityDashboardView: React.FC = () => {
       </div>
 
       {/* 2. SECURITY SPLIT VIEW: Gate Monitor & Access Denials */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: '16px' }}>
         {/* Gate Activity & Live Lane Monitor */}
         <Card title="Live Gate Lane Monitor" subtitle="Turnstiles, Boom Barriers, and ANPR feed telemetry">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -126,7 +126,7 @@ export const SecurityDashboardView: React.FC = () => {
       </div>
 
       {/* 3. OVERSTAYS AND RECENT SECURITY EVENTS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: '16px' }}>
         {/* Active Overstay Tracker */}
         <Card title="Active Overstay Tracker" subtitle="Personnel exceeding authorized exit time by &gt; 30 minutes">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

@@ -126,24 +126,30 @@ function holdsAnyRole(user: SessionUser, roles: string[]): boolean {
   return [user.role, ...user.roles].some(r => roles.includes(r) || (r === 'ORGANIZATION_ADMIN' && roles.includes('SUPER_ADMIN')));
 }
 
-function liveNavDomains<D extends { id: string; roles: string[]; items: Array<{ route: string; label: string }> }>(
+type NavItem = { route: string; label: string; sample?: boolean };
+
+function liveNavDomains<D extends { id: string; roles: string[]; items: NavItem[] }>(
   domains: D[],
   user: SessionUser
 ): Array<D & { preview?: boolean }> {
   const live: Array<D & { preview?: boolean }> = [];
   const preview: Array<D & { preview?: boolean }> = [];
   for (const d of domains) {
-    const liveItems =
+    const liveItems: NavItem[] = (
       d.id === 'services'
         ? serviceNavFor(user)
-        : (LIVE_NAV[d.id] ?? []).filter(i => i.anyOf.length === 0 || i.anyOf.some(p => user.permissions.includes(p)));
-    if (liveItems.length) live.push({ ...d, items: liveItems.map(({ route, label }) => ({ route, label })) });
-    if (d.id === 'services') continue;
+        : (LIVE_NAV[d.id] ?? []).filter(i => i.anyOf.length === 0 || i.anyOf.some(p => user.permissions.includes(p)))
+    ).map(({ route, label }) => ({ route, label }));
     const liveRoutes = new Set((LIVE_NAV[d.id] ?? []).map(i => i.route));
-    const sampleItems = d.items.filter(i => !liveRoutes.has(i.route) && !(d.id === 'visitors' && i.route in LIVE_VISITOR_FILTERS));
-    if (sampleItems.length && holdsAnyRole(user, d.roles)) {
-      preview.push({ ...d, id: `${d.id}-preview`, items: sampleItems, preview: true });
-    }
+    const sampleItems: NavItem[] =
+      d.id === 'services' || !holdsAnyRole(user, d.roles)
+        ? []
+        : d.items
+            .filter(i => !liveRoutes.has(i.route) && !(d.id === 'visitors' && i.route in LIVE_VISITOR_FILTERS))
+            .map(i => ({ ...i, sample: true }));
+    if (liveItems.length) live.push({ ...d, items: [...liveItems, ...sampleItems] });
+    // Groups with no live screen sit under the Preview heading, so their items need no tag.
+    else if (sampleItems.length) preview.push({ ...d, items: sampleItems.map(({ sample: _sample, ...item }) => item), preview: true });
   }
   return [...live, ...preview];
 }
@@ -226,6 +232,7 @@ export const App: React.FC<AppProps> = ({
   const isCompact = useMediaQuery('(max-width: 900px)');
   const showSidebar = !isCompact || isMobileMenuOpen;
   const railCollapsed = !isCompact && isSidebarCollapsed;
+  const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
   const goTo = (route: string) => {
     setSelectedDetailItem(null);
     setActiveRoute(route);
@@ -1241,6 +1248,16 @@ export const App: React.FC<AppProps> = ({
     return <ExecutiveDashboardView />;
   };
 
+  // The kiosk is a visitor-facing terminal: full screen, without the operator shell around it.
+  if (activeRoute === '/kiosk' && !selectedDetailItem) {
+    return (
+      <div className="tw" style={{ minHeight: '100vh', backgroundColor: colors.slate[50] }}>
+        <KioskWelcomeView onExitKiosk={() => setActiveRoute('/dashboard')} />
+        <ToastHost />
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: colors.slate[50] }}>
       {/* 1. PERSISTENT EMERGENCY BANNER (Section 29) */}
@@ -1508,6 +1525,9 @@ export const App: React.FC<AppProps> = ({
             }}
           >
             <option value="SUPER_ADMIN">Role: Super Admin</option>
+            <option value="SITE_ADMIN">Role: Site Admin</option>
+            <option value="SECURITY_MANAGER">Role: Security Manager</option>
+            <option value="SERVICE_MANAGER">Role: Service Manager</option>
             <option value="SECURITY_GUARD">Role: Security Guard</option>
             <option value="RECEPTIONIST">Role: Receptionist</option>
             <option value="EHS_MANAGER">Role: EHS Safety Manager</option>
@@ -1559,8 +1579,8 @@ export const App: React.FC<AppProps> = ({
               />
             </div>
           )}
-          {/* Navigation Items List */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+          {/* Navigation Items List (min-height 0 lets it scroll inside the fixed-height sidebar) */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '8px' }}>
             {visibleDomains.map((domain, index) => {
               const isDomainActive = domain.items.some((item) => item.route === activeRoute);
               const firstPreview = domain.preview && !visibleDomains[index - 1]?.preview;
@@ -1570,13 +1590,15 @@ export const App: React.FC<AppProps> = ({
                   {firstPreview && !railCollapsed && (
                     <div style={{ margin: '14px 10px 6px', paddingTop: '10px', borderTop: `1px solid ${colors.slate[200]}` }}>
                       <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: colors.slate[500] }}>Preview</div>
-                      <div style={{ fontSize: '11px', color: colors.slate[500], marginTop: '2px' }}>Sample data, not connected yet</div>
+                      <div style={{ fontSize: '11px', color: colors.slate[500], marginTop: '2px' }}>Modules on sample data, not connected yet</div>
                     </div>
                   )}
                   <button
                     type="button"
-                    onClick={() => goTo(domain.items[0].route)}
-                    aria-expanded={isDomainActive}
+                    onClick={() =>
+                      isCompact ? setExpandedDomain(expandedDomain === domain.id ? null : domain.id) : goTo(domain.items[0].route)
+                    }
+                    aria-expanded={isDomainActive || expandedDomain === domain.id}
                     style={{
                       width: '100%',
                       display: 'flex',
@@ -1603,7 +1625,7 @@ export const App: React.FC<AppProps> = ({
                   </button>
 
                   {/* Sub-items if domain active and not collapsed */}
-                  {!railCollapsed && isDomainActive && (
+                  {!railCollapsed && (isDomainActive || (isCompact && expandedDomain === domain.id)) && (
                     <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '28px', marginTop: '2px', paddingLeft: '8px', borderLeft: `1.5px solid ${colors.slate[200]}` }}>
                       {domain.items.map((sub) => {
                         const isSubActive = activeRoute === sub.route && !selectedDetailItem;
@@ -1627,6 +1649,14 @@ export const App: React.FC<AppProps> = ({
                             }}
                           >
                             {sub.label}
+                            {(sub as NavItem).sample && (
+                              <span
+                                title="Sample data, not connected yet"
+                                style={{ marginLeft: '6px', fontSize: '9px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: colors.slate[500], border: `1px solid ${colors.slate[300]}`, borderRadius: radius.sm, padding: '0 3px' }}
+                              >
+                                sample
+                              </span>
+                            )}
                           </button>
                         );
                       })}

@@ -277,7 +277,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
       </div>
 
       {/* 2. Persona Navigation Tabs */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${colors.slate[200]}`, gap: '4px', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${colors.slate[200]}`, gap: '4px', overflowX: 'auto', maxWidth: '100%', minWidth: 0 }}>
         {[
           { id: 'MY_PENDING', label: 'Pending Approvals', count: counts.pending, icon: <Clock size={14} /> },
           { id: 'DELEGATED', label: 'Delegated Tasks', count: counts.delegated, icon: <UserCheck size={14} /> },
@@ -432,7 +432,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     {/* SLA Badge */}
                     <span
                       style={{
@@ -460,7 +460,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
                 </div>
 
                 {/* Task Body: Requester, Assigned Approver, Submitted details */}
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: '12px', fontSize: typography.fontSize.xs.size, color: colors.slate[600] }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '12px', fontSize: typography.fontSize.xs.size, color: colors.slate[600] }}>
                   <div>
                     <span style={{ color: colors.slate[500], display: 'block' }}>Subject / Requester:</span>
                     <strong style={{ color: colors.slate[800] }}>{task.requesterName}</strong>
@@ -485,7 +485,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
                 </div>
 
                 {/* Action Buttons Footer */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${colors.slate[100]}`, paddingTop: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderTop: `1px solid ${colors.slate[100]}`, paddingTop: '10px' }}>
                   <button
                     type="button"
                     onClick={() => setSelectedTaskDetail(task)}
@@ -505,7 +505,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
                   </button>
 
                   {!isResolved ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <Button
                         variant="ghost"
                         size="dense"

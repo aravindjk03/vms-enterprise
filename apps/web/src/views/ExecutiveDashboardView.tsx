@@ -28,7 +28,7 @@ export const ExecutiveDashboardView: React.FC = () => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))',
           gap: '14px',
         }}
       >
@@ -130,7 +130,7 @@ export const ExecutiveDashboardView: React.FC = () => {
       </div>
 
       {/* 2. SECOND AREA: Gate Activity, Approvals, Exceptions, Emergency (Section 11) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '14px' }}>
         <Card title="Gate Activity & Throughput" subtitle="Real-time ingress and egress velocity across 4 gates">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -227,7 +227,7 @@ export const ExecutiveDashboardView: React.FC = () => {
 
       {/* 3. THIRD AREA: MULTI-PIPELINE TRENDS (Section 11) */}
       <Card title="Weekly Operational Throughput Trends" subtitle="Aggregated volume across primary transaction pipelines (Demo Data)">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '16px' }}>
           <div style={{ padding: '12px', backgroundColor: colors.slate[50], borderRadius: radius.md }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span style={{ fontSize: typography.fontSize.xs.size, fontWeight: 600, color: colors.slate[700] }}>Visitor Influx</span>
@@ -268,7 +268,7 @@ export const ExecutiveDashboardView: React.FC = () => {
 
       {/* 4. FOURTH AREA: ESG & GHG SUSTAINABILITY INTELLIGENCE (Section 11) */}
       <Card variant="esg" title="Cross-Domain ESG Activity & Scope 3 Footprint" subtitle="Normalized transport activity automatically derived from operational gate passes">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '16px' }}>
           <div>
             <span style={{ fontSize: typography.fontSize.xs.size, fontWeight: 600, color: colors.slate[600] }}>
               Today's Captured Mobility Emissions

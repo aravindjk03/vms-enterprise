@@ -1154,7 +1154,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
         </div>
 
         {/* Global Action Bar */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="dense"
             variant="secondary"

@@ -915,7 +915,7 @@ const TraceabilityPanel: React.FC<{ data: WorkOrderDetailData }> = ({ data }) =>
       <SelectField label="Journey" value={selected ?? ''} onChange={setSelected} required options={data.journeys.map(j => ({ value: j.id, label: `${j.referenceNumber}${j.supersededBy ? ' (superseded)' : ''}` }))} />
       <ErrorNote error={error} />
       {trace && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginTop: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '12px', marginTop: '12px' }}>
           <div style={{ border: `1px solid ${colors.slate[200]}`, borderRadius: radius.md, padding: '10px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: colors.slate[500] }}>1 · SOURCE TRANSACTIONS</div>
             {trace.sources.map(s => (

@@ -254,7 +254,7 @@ export const RulesEngineView: React.FC<RulesEngineViewProps> = ({
       </Card>
 
       {/* 3. Main Workspace: Rules Matrix + Live Policy Simulator */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '16px' }}>
+      <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '16px' }}>
         {/* Left: Rules Matrix */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ backgroundColor: '#ffffff', border: `1px solid ${colors.slate[200]}`, borderRadius: radius.md, padding: '16px' }}>
