@@ -107,7 +107,7 @@ describe('API + PostgreSQL integration', { skip: !ADMIN_URL && 'INTEGRATION_DATA
   it('migrations are recorded and re-running them is a no-op', async () => {
     const report = await runMigrations(owner, () => undefined);
     assert.equal(report.applied.length, 0);
-    assert.equal(report.alreadyApplied.length, 6);
+    assert.equal(report.alreadyApplied.length, loadMigrationFiles().length);
   });
 
   it('detects drift when an applied migration is edited', async () => {

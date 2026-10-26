@@ -13,6 +13,8 @@ import { HttpError } from './errors.js';
 import { verifyAccessToken, type AccessTokenClaims } from './security/tokens.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerDomainRoutes } from './routes/domain.js';
+import { registerServiceRoutes } from './routes/service/index.js';
+import { DomainRuleError } from '@vms/service';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -84,7 +86,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       reply.header('Vary', 'Origin');
       if (request.method === 'OPTIONS') {
         reply.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
-        reply.header('Access-Control-Allow-Headers', 'Authorization,Content-Type,X-Requested-With');
+        reply.header('Access-Control-Allow-Headers', 'Authorization,Content-Type,X-Requested-With,Idempotency-Key');
         reply.header('Access-Control-Max-Age', '600');
         return reply.code(204).send();
       }
@@ -99,6 +101,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.setErrorHandler((err: unknown, request, reply) => {
     if (err instanceof HttpError) {
       return reply.code(err.statusCode).send({ error: { code: err.code, message: err.message, requestId: request.id } });
+    }
+    if (err instanceof DomainRuleError) {
+      const badInput = ['INVALID_DATES', 'INVALID_RULE', 'RANGE_TOO_LARGE'].includes(err.code);
+      return reply.code(badInput ? 400 : 409).send({ error: { code: err.code, message: err.message, requestId: request.id } });
     }
     if (err instanceof ZodError) {
       return reply.code(400).send({
@@ -163,6 +169,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await registerAuthRoutes(app, ctx);
   await registerDomainRoutes(app, ctx);
+  await registerServiceRoutes(app, ctx);
 
   app.all('/api/*', async (_request: FastifyRequest) => {
     throw new HttpError(404, 'NOT_FOUND', 'Endpoint not found.');

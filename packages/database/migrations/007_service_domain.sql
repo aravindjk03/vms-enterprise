@@ -396,6 +396,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_service_exception_missed ON service_excepti
 ALTER TABLE transport_activities ALTER COLUMN distance DROP NOT NULL;
 ALTER TABLE transport_activities ALTER COLUMN origin_location_name DROP NOT NULL;
 ALTER TABLE transport_activities ALTER COLUMN destination_location_name DROP NOT NULL;
+-- Migration 001 filled missing facts with invented defaults (e.g. measurement_method 'GIS_ROUTING',
+-- occupancy 1, direction 'INBOUND'). Unknown must stay unknown, so these become nullable without defaults.
+ALTER TABLE transport_activities ALTER COLUMN usage_type DROP NOT NULL;
+ALTER TABLE transport_activities ALTER COLUMN usage_type DROP DEFAULT;
+ALTER TABLE transport_activities ALTER COLUMN occupancy DROP NOT NULL;
+ALTER TABLE transport_activities ALTER COLUMN occupancy DROP DEFAULT;
+ALTER TABLE transport_activities ALTER COLUMN direction DROP NOT NULL;
+ALTER TABLE transport_activities ALTER COLUMN direction DROP DEFAULT;
+ALTER TABLE transport_activities ALTER COLUMN measurement_method DROP DEFAULT;
+ALTER TABLE transport_activities ALTER COLUMN distance_unit DROP NOT NULL;
+ALTER TABLE transport_activities ALTER COLUMN distance_unit DROP DEFAULT;
+ALTER TABLE transport_activities ALTER COLUMN data_source DROP DEFAULT;
+ALTER TABLE transport_activities ALTER COLUMN journey_type DROP DEFAULT;
 ALTER TABLE transport_activities
     ADD COLUMN IF NOT EXISTS journey_fingerprint CHAR(64),
     ADD COLUMN IF NOT EXISTS data_completeness VARCHAR(16),
@@ -405,17 +418,30 @@ ALTER TABLE transport_activities
     ADD COLUMN IF NOT EXISTS correction_reason TEXT,
     ADD COLUMN IF NOT EXISTS created_by VARCHAR(64);
 
+-- 001 allowed a single transport activity per source transaction, which cannot represent two technicians
+-- (or two days) travelling for one work order. Physical-journey identity is enforced by the fingerprint below.
+ALTER TABLE transport_activities DROP CONSTRAINT IF EXISTS uq_transport_source;
+CREATE INDEX IF NOT EXISTS idx_transport_activities_source_tx ON transport_activities (tenant_id, source_domain, source_transaction_id);
+
 -- One current record per physical journey (same traveller, day, route, mode, direction).
 CREATE UNIQUE INDEX IF NOT EXISTS uq_transport_activity_journey ON transport_activities (tenant_id, journey_fingerprint)
     WHERE journey_fingerprint IS NOT NULL AND superseded_by IS NULL;
 
 ALTER TABLE ghg_activities ALTER COLUMN quantity DROP NOT NULL;
 ALTER TABLE ghg_activities ALTER COLUMN quantity_unit DROP NOT NULL;
+-- Data quality must be derived from provenance, never assumed ('MEASURED' was the 001 default).
+ALTER TABLE ghg_activities ALTER COLUMN data_quality DROP NOT NULL;
+ALTER TABLE ghg_activities ALTER COLUMN data_quality DROP DEFAULT;
 ALTER TABLE ghg_activities
     ADD COLUMN IF NOT EXISTS transport_activity_id UUID REFERENCES transport_activities(id) ON DELETE RESTRICT,
     ADD COLUMN IF NOT EXISTS source_entity_type VARCHAR(64),
     ADD COLUMN IF NOT EXISTS missing_facts TEXT[],
     ADD COLUMN IF NOT EXISTS superseded_by UUID REFERENCES ghg_activities(id) ON DELETE RESTRICT;
+
+-- 001 allowed one GHG activity per (source transaction, activity type); a work order with two
+-- technicians' journeys, or a corrected journey, legitimately has several. Idempotency is per
+-- transport activity instead (lookup index idx_ghg_act_source remains).
+ALTER TABLE ghg_activities DROP CONSTRAINT IF EXISTS uq_ghg_source;
 
 -- Idempotent capture: at most one GHG activity per transport activity.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ghg_activity_transport ON ghg_activities (transport_activity_id)
@@ -506,12 +532,16 @@ SELECT make_append_only(t::regclass) FROM unnest(ARRAY['service_progress_events'
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vms_app') THEN
-        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO vms_app;
-        REVOKE UPDATE, DELETE, TRUNCATE ON service_progress_events, service_status_history FROM vms_app;
-        REVOKE DELETE, TRUNCATE ON service_completion_records, service_work_order_journeys, api_idempotency_keys FROM vms_app;
-        IF to_regclass('public.schema_migrations') IS NOT NULL THEN
-            REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations FROM vms_app;
-        END IF;
+        -- Grant only on this migration's tables (a schema-wide grant would undo 006's ledger revocations).
+        GRANT SELECT, INSERT, UPDATE, DELETE ON
+            service_provider_categories, service_provider_sites, service_work_order_deliverables, service_schedules,
+            service_occurrences, service_assignments, service_exceptions TO vms_app;
+        GRANT SELECT, INSERT, UPDATE ON service_completion_records, service_work_order_journeys TO vms_app;
+        GRANT SELECT, INSERT ON service_progress_events, service_status_history, api_idempotency_keys TO vms_app;
+        REVOKE UPDATE, DELETE, TRUNCATE ON service_progress_events, service_status_history, api_idempotency_keys FROM vms_app;
+        REVOKE DELETE, TRUNCATE ON service_completion_records, service_work_order_journeys FROM vms_app;
+        -- Activity records are corrected by supersession, never deleted by the application.
+        REVOKE DELETE, TRUNCATE ON transport_activities, ghg_activities FROM vms_app;
         GRANT EXECUTE ON FUNCTION outbox_claim(TEXT[], INTEGER, INTEGER) TO vms_app;
     END IF;
 END $$;
