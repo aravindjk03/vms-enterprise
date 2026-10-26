@@ -155,6 +155,19 @@ const LIVE_VISITOR_FILTERS: Record<string, string> = {
   '/visitors/cancelled': 'CANCELLED',
 };
 
+/** True while the viewport matches `query` (re-evaluated on resize / rotation). */
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const update = () => setMatches(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [query]);
+  return matches;
+}
+
 export const App: React.FC<AppProps> = ({ 
   initialRoute = '/dashboard', 
   initialRole = 'SUPER_ADMIN',
@@ -164,6 +177,15 @@ export const App: React.FC<AppProps> = ({
   const [activeRoute, setActiveRoute] = useState<string>(initialRoute);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  // Phones and small tablets: the sidebar becomes a drawer and the header keeps only icons.
+  const isCompact = useMediaQuery('(max-width: 900px)');
+  const showSidebar = !isCompact || isMobileMenuOpen;
+  const railCollapsed = !isCompact && isSidebarCollapsed;
+  const goTo = (route: string) => {
+    setSelectedDetailItem(null);
+    setActiveRoute(route);
+    if (isCompact) setIsMobileMenuOpen(false);
+  };
 
   // Authenticated Role & Scope State
   // Signed-in sessions take the role the server assigned; the persona switcher exists only in the demo.
@@ -1263,20 +1285,24 @@ export const App: React.FC<AppProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           height: '48px',
-          padding: '0 16px',
+          padding: isCompact ? '0 10px' : '0 16px',
           backgroundColor: colors.slate[900],
           color: '#ffffff',
           borderBottom: `1px solid ${colors.slate[800]}`,
+          position: 'sticky',
+          top: 0,
           zIndex: 100,
-          gap: '12px',
+          gap: isCompact ? '8px' : '12px',
+          minWidth: 0,
         }}
       >
-        {/* Left: Mobile Toggle, Brand & Context Switcher (Section 7) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Left: Menu toggle, Brand & Context Switcher (Section 7) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isCompact ? '8px' : '12px', minWidth: 0 }}>
           <button
             type="button"
-            aria-label="Toggle Navigation Menu"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isCompact ? (isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu') : isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+            aria-expanded={isCompact ? isMobileMenuOpen : !isSidebarCollapsed}
+            onClick={() => (isCompact ? setIsMobileMenuOpen(!isMobileMenuOpen) : setIsSidebarCollapsed(!isSidebarCollapsed))}
             style={{
               background: 'none',
               border: 'none',
@@ -1289,37 +1315,52 @@ export const App: React.FC<AppProps> = ({
             <Menu size={18} />
           </button>
 
-          <div
+          <button
+            type="button"
+            aria-label="VMS Enterprise home"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               cursor: 'pointer',
-              paddingRight: '8px',
-              borderRight: `1px solid ${colors.slate[700]}`,
+              padding: '0 8px 0 0',
+              background: 'none',
+              border: 'none',
+              borderRight: isCompact ? 'none' : `1px solid ${colors.slate[700]}`,
+              color: '#ffffff',
+              whiteSpace: 'nowrap',
             }}
-            onClick={() => {
-              setSelectedDetailItem(null);
-              setActiveRoute('/dashboard');
-            }}
+            onClick={() => goTo('/dashboard')}
           >
             <Shield size={18} color={colors.primary[500]} />
             <strong style={{ fontSize: typography.fontSize.sm.size, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              VMS Enterprise
+              {isCompact ? 'VMS' : 'VMS Enterprise'}
             </strong>
-          </div>
+          </button>
 
-          {(!session || liveSites.length > 0) && (
-            <ContextSwitcher
-              currentContext={activeSiteContext}
-              availableSites={session ? liveSites : DEMO_SITES}
-              onSelectContext={setActiveSiteContext}
-            />
+          {!isCompact && (!session || liveSites.length > 0) && (
+            <div style={{ minWidth: 0 }}>
+              <ContextSwitcher
+                currentContext={activeSiteContext}
+                availableSites={session ? liveSites : DEMO_SITES}
+                onSelectContext={setActiveSiteContext}
+              />
+            </div>
           )}
         </div>
 
         {/* Center: Global Search & Command Palette Trigger (Section 8 & 9) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '420px', margin: '0 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: isCompact ? '0 0 auto' : 1, minWidth: 0, maxWidth: '420px', margin: isCompact ? '0 0 0 auto' : '0 12px' }}>
+          {isCompact ? (
+            <button
+              type="button"
+              aria-label="Search"
+              onClick={() => setIsGlobalSearchOpen(true)}
+              style={{ display: 'flex', padding: '6px', background: colors.slate[800], border: `1px solid ${colors.slate[700]}`, borderRadius: radius.md, color: colors.slate[300], cursor: 'pointer' }}
+            >
+              <Search size={15} />
+            </button>
+          ) : (
           <button
             type="button"
             onClick={() => setIsGlobalSearchOpen(true)}
@@ -1337,9 +1378,9 @@ export const App: React.FC<AppProps> = ({
               cursor: 'pointer',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Search size={14} />
-              <span>Search visitors, vehicles, challans, documents...</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+              <Search size={14} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Search visitors, vehicles, challans, documents…</span>
             </div>
             <kbd
               style={{
@@ -1355,10 +1396,15 @@ export const App: React.FC<AppProps> = ({
               Ctrl+K
             </kbd>
           </button>
+          )}
         </div>
 
-        {/* Right: Emergency Siren, Gate Mode, Kiosk Mode, Notifications, Sync Status, Role Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Right: Emergency Siren, Gate Mode, Kiosk Mode, Notifications, Sync Status, Role Switcher.
+            The siren, gate/kiosk shortcuts, notifications and sync status are demo simulations, so a
+            signed-in (live) console does not show them. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isCompact ? '6px' : '10px', minWidth: 0 }}>
+          {!session && (
+          <>
           {/* Emergency Siren Toggle */}
           <button
             type="button"
@@ -1386,43 +1432,39 @@ export const App: React.FC<AppProps> = ({
           </button>
 
           {/* Quick Gate Mode Trigger */}
+          {!isCompact && (
           <Button
             variant="ghost"
             size="dense"
             style={{ color: '#ffffff', border: `1px solid ${colors.slate[700]}` }}
             leftIcon={<Shield size={13} />}
-            onClick={() => {
-              setSelectedDetailItem(null);
-              setActiveRoute('/gate');
-            }}
+            onClick={() => goTo('/gate')}
           >
             Gate Mode
           </Button>
+          )}
 
           {/* Quick Kiosk Mode Trigger */}
+          {!isCompact && (
           <Button
             variant="ghost"
             size="dense"
             style={{ color: '#ffffff', border: `1px solid ${colors.slate[700]}` }}
             leftIcon={<Tablet size={13} />}
-            onClick={() => {
-              setSelectedDetailItem(null);
-              setActiveRoute('/kiosk');
-            }}
+            onClick={() => goTo('/kiosk')}
           >
             Kiosk
           </Button>
+          )}
 
           {/* Notification Center Popover */}
           <NotificationCenter
             notifications={DEMO_NOTIFICATIONS}
-            onNavigate={(url) => {
-              setSelectedDetailItem(null);
-              setActiveRoute(url);
-            }}
+            onNavigate={(url) => goTo(url)}
           />
 
           {/* Offline Sync State Indicator (Section 38) */}
+          {!isCompact && (
           <SyncStatusIndicator
             state={syncState}
             compact
@@ -1434,11 +1476,15 @@ export const App: React.FC<AppProps> = ({
               setSyncState(states[nextIdx]);
             }}
           />
+          )}
+          </>
+          )}
 
           {session ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              {!isCompact && (
               <span
-                style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, maxWidth: '200px', color: '#ffffff' }}
+                style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, maxWidth: '200px', minWidth: 0, color: '#ffffff' }}
                 title={`${session.user.fullName} (${session.user.username})`}
               >
                 <span style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1446,6 +1492,7 @@ export const App: React.FC<AppProps> = ({
                 </span>
                 <span style={{ fontSize: '10px', color: colors.slate[400], whiteSpace: 'nowrap' }}>{session.user.role.replace(/_/g, ' ')}</span>
               </span>
+              )}
               <button
                 type="button"
                 onClick={session.onSignOut}
@@ -1478,8 +1525,9 @@ export const App: React.FC<AppProps> = ({
               borderRadius: radius.sm,
               fontSize: '11px',
               fontWeight: 600,
-              outline: 'none',
               cursor: 'pointer',
+              maxWidth: isCompact ? '120px' : undefined,
+              minWidth: 0,
             }}
           >
             <option value="SUPER_ADMIN">Role: Super Admin</option>
@@ -1496,11 +1544,21 @@ export const App: React.FC<AppProps> = ({
       </header>
 
       {/* 3. APPLICATION BODY (LeftNav + MainContent) */}
-      <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
+      <div style={{ display: 'flex', flex: 1, position: 'relative', minWidth: 0 }}>
+        {/* Drawer backdrop on small screens */}
+        {isCompact && isMobileMenuOpen && (
+          <div
+            aria-hidden="true"
+            onClick={() => setIsMobileMenuOpen(false)}
+            style={{ position: 'fixed', inset: '48px 0 0 0', backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 90 }}
+          />
+        )}
         {/* LEFT NAVIGATION SIDEBAR (Sections 5 & 6) */}
+        {showSidebar && (
         <aside
+          aria-label="Main navigation"
           style={{
-            width: isSidebarCollapsed ? '60px' : '230px',
+            width: isCompact ? 'min(280px, 85vw)' : railCollapsed ? '60px' : '230px',
             backgroundColor: '#ffffff',
             borderRight: `1px solid ${colors.slate[200]}`,
             display: 'flex',
@@ -1508,9 +1566,22 @@ export const App: React.FC<AppProps> = ({
             transition: 'width 150ms ease',
             flexShrink: 0,
             overflowX: 'hidden',
+            ...(isCompact
+              ? { position: 'fixed', top: '48px', bottom: 0, left: 0, zIndex: 95, boxShadow: '0 10px 30px rgba(15, 23, 42, 0.25)' }
+              : { position: 'sticky', top: '48px', alignSelf: 'flex-start', height: 'calc(100vh - 48px)' }),
           }}
           className="vms-left-nav"
         >
+          {/* On small screens the site switcher lives in the drawer instead of the header. */}
+          {isCompact && (!session || liveSites.length > 0) && (
+            <div style={{ padding: '10px 10px 6px', borderBottom: `1px solid ${colors.slate[200]}`, backgroundColor: colors.slate[900] }}>
+              <ContextSwitcher
+                currentContext={activeSiteContext}
+                availableSites={session ? liveSites : DEMO_SITES}
+                onSelectContext={setActiveSiteContext}
+              />
+            </div>
+          )}
           {/* Navigation Items List */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
             {visibleDomains.map((domain, index) => {
@@ -1519,7 +1590,7 @@ export const App: React.FC<AppProps> = ({
 
               return (
                 <div key={domain.id} style={{ marginBottom: '4px' }}>
-                  {firstPreview && !isSidebarCollapsed && (
+                  {firstPreview && !railCollapsed && (
                     <div style={{ margin: '14px 10px 6px', paddingTop: '10px', borderTop: `1px solid ${colors.slate[200]}` }}>
                       <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: colors.slate[500] }}>Preview</div>
                       <div style={{ fontSize: '11px', color: colors.slate[500], marginTop: '2px' }}>Sample data, not connected yet</div>
@@ -1527,15 +1598,13 @@ export const App: React.FC<AppProps> = ({
                   )}
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedDetailItem(null);
-                      setActiveRoute(domain.items[0].route);
-                    }}
+                    onClick={() => goTo(domain.items[0].route)}
+                    aria-expanded={isDomainActive}
                     style={{
                       width: '100%',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: isSidebarCollapsed ? 'center' : 'space-between',
+                      justifyContent: railCollapsed ? 'center' : 'space-between',
                       padding: '8px 10px',
                       borderRadius: radius.md,
                       border: 'none',
@@ -1546,18 +1615,18 @@ export const App: React.FC<AppProps> = ({
                       fontWeight: isDomainActive ? 700 : 500,
                       transition: 'background-color 80ms ease',
                     }}
-                    title={isSidebarCollapsed ? domain.label : undefined}
+                    title={railCollapsed ? domain.label : undefined}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ color: isDomainActive ? colors.primary[600] : colors.slate[500] }}>
                         {domain.icon}
                       </span>
-                      {!isSidebarCollapsed && <span>{domain.label}</span>}
+                      {!railCollapsed && <span>{domain.label}</span>}
                     </div>
                   </button>
 
                   {/* Sub-items if domain active and not collapsed */}
-                  {!isSidebarCollapsed && isDomainActive && (
+                  {!railCollapsed && isDomainActive && (
                     <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '28px', marginTop: '2px', paddingLeft: '8px', borderLeft: `1.5px solid ${colors.slate[200]}` }}>
                       {domain.items.map((sub) => {
                         const isSubActive = activeRoute === sub.route && !selectedDetailItem;
@@ -1565,10 +1634,8 @@ export const App: React.FC<AppProps> = ({
                           <button
                             key={sub.route}
                             type="button"
-                            onClick={() => {
-                              setSelectedDetailItem(null);
-                              setActiveRoute(sub.route);
-                            }}
+                            onClick={() => goTo(sub.route)}
+                            aria-current={isSubActive ? 'page' : undefined}
                             style={{
                               textAlign: 'left',
                               padding: '5px 8px',
@@ -1593,7 +1660,8 @@ export const App: React.FC<AppProps> = ({
             })}
           </div>
 
-          {/* Sidebar Collapse Toggle */}
+          {/* Sidebar Collapse Toggle (desktop rail only) */}
+          {!isCompact && (
           <div style={{ padding: '8px', borderTop: `1px solid ${colors.slate[200]}` }}>
             <button
               type="button"
@@ -1613,16 +1681,18 @@ export const App: React.FC<AppProps> = ({
               {isSidebarCollapsed ? '→' : '← Collapse Rail'}
             </button>
           </div>
+          )}
         </aside>
+        )}
 
-        {/* MAIN CONTENT AREA */}
+        {/* MAIN CONTENT AREA (min-width 0 so wide tables scroll inside their own containers) */}
         <main
           style={{
             flex: 1,
+            minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
-            overflowY: 'auto',
-            padding: '20px 24px',
+            padding: isCompact ? '14px 16px' : '20px 24px',
             maxWidth: '100%',
           }}
         >

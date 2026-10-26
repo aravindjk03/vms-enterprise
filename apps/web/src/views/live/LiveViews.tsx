@@ -156,6 +156,7 @@ export const LiveBadge: React.FC = () => (
       border: `1px solid ${colors.status.success.border}`,
       borderRadius: radius.full,
       padding: '2px 8px',
+      whiteSpace: 'nowrap',
     }}
   >
     LIVE DATA
@@ -249,6 +250,7 @@ interface Summary {
   visitorApprovalsPending: number;
   contractorCompanies: number;
   openWorkOrders: number;
+  openServiceWorkOrders: number;
   customerAccounts: number;
   upcomingCustomerVisits: number;
   materialMovementsToday: number;
@@ -264,7 +266,8 @@ export const LiveKpiStrip: React.FC = () => {
     ['Visitor approvals pending', 'visitorApprovalsPending'],
     ['Gate events today', 'gateEventsToday'],
     ['Contractor companies', 'contractorCompanies'],
-    ['Open work orders', 'openWorkOrders'],
+    ['Open contractor work orders', 'openWorkOrders'],
+    ['Open service work orders', 'openServiceWorkOrders'],
     ['Customer accounts', 'customerAccounts'],
     ['Registered vehicles', 'registeredVehicles'],
   ];

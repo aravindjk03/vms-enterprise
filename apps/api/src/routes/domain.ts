@@ -143,6 +143,7 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
            (SELECT count(*) FROM visitor_transactions WHERE status = 'PENDING' AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "visitorApprovalsPending",
            (SELECT count(*) FROM contractor_companies WHERE status = 'ACTIVE')::int AS "contractorCompanies",
            (SELECT count(*) FROM contractor_work_orders WHERE status NOT IN ('CLOSED','CANCELLED','COMPLETED') AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "openWorkOrders",
+           (SELECT count(*) FROM service_work_orders WHERE status NOT IN ('CLOSED','CANCELLED','REJECTED','COMPLETED') AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "openServiceWorkOrders",
            (SELECT count(*) FROM customer_accounts WHERE status = 'ACTIVE')::int AS "customerAccounts",
            (SELECT count(*) FROM customer_visit_transactions WHERE scheduled_start >= now() AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "upcomingCustomerVisits",
            (SELECT count(*) FROM material_transactions WHERE created_at::date = current_date AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "materialMovementsToday",
