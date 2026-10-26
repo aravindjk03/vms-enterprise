@@ -5,6 +5,7 @@
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { setUserPassword } from '../../packages/database/scripts/bootstrap-user.js';
+import { ROLE_PERMISSIONS } from '../../packages/permissions/src/index.js';
 import { ADMIN_URL, addUser, createTestEnv, type Session, type TestEnv } from './helpers.js';
 
 const T = '00000000-0000-0000-0000-000000000001';
@@ -163,5 +164,38 @@ describe('Access administration (API + PostgreSQL)', { skip: !ADMIN_URL && 'INTE
     const guard = await env.login('GLOBAL-MFG', 'plain.guard', PW);
     assert.equal((await guard.get('/api/v1/admin/users')).statusCode, 403);
     assert.equal((await guard.get('/api/v1/admin/roles')).statusCode, 403);
+  });
+
+  it('returns dashboard counts only to roles that may read them, and a searchable audit log with names', async () => {
+    const NEEDS: Record<string, string> = {
+      visitorsOnSite: 'VISITOR_READ',
+      contractorCompanies: 'CONTRACTOR_READ',
+      openServiceWorkOrders: 'SERVICE_READ',
+      customerAccounts: 'CUSTOMER_READ',
+      registeredVehicles: 'VEHICLE_READ',
+      gateEventsToday: 'GATE_VIEW',
+    };
+    await addUser(env.owner, { tenantId: T, orgId: ORG, tenantCode: 'GLOBAL-MFG', username: 'plain.host', role: 'HOST', siteIds: [DETROIT], password: PW });
+    const host = await env.login('GLOBAL-MFG', 'plain.host', PW);
+    for (const [session, role] of [[host, 'HOST'], [superAdmin, 'SUPER_ADMIN']] as const) {
+      const summary = (await session.get('/api/v1/dashboard/summary')).json() as Record<string, number | null>;
+      for (const [key, permission] of Object.entries(NEEDS)) {
+        const allowed = (ROLE_PERMISSIONS[role] as string[]).includes(permission);
+        assert.equal(summary[key] === null, !allowed, `${role} ${key}`);
+      }
+    }
+
+    const created = (await superAdmin.get('/api/v1/audit-logs?action=USER_CREATED&limit=5')).json();
+    assert.ok(created.total >= 1);
+    for (const row of created.items) {
+      assert.equal(row.action, 'USER_CREATED');
+      assert.ok(typeof row.actorName === 'string' && row.actorName.length > 0, 'actor is named');
+    }
+    const byActor = (await superAdmin.get('/api/v1/audit-logs?search=site.admin&limit=50')).json();
+    assert.ok(byActor.items.length > 0 && byActor.items.every((r: { actorId: string; entityId: string }) => r.actorId !== null));
+    const future = encodeURIComponent(new Date(Date.now() + 3_600_000).toISOString());
+    assert.equal((await superAdmin.get(`/api/v1/audit-logs?from=${future}`)).json().total, 0);
+    assert.equal((await superAdmin.get('/api/v1/audit-logs?from=yesterday')).statusCode, 400);
+    assert.equal((await host.get('/api/v1/audit-logs')).statusCode, 403);
   });
 });

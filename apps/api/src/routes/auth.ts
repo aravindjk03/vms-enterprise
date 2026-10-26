@@ -72,6 +72,7 @@ export function describeUser(user: AuthenticatedUser) {
     defaultSiteId: user.siteId ?? null,
     permissions: Array.from(new Set(roles.flatMap(r => ROLE_PERMISSIONS[r] || []))),
     email: user.email,
+    organizationName: user.organizationName,
     mustChangePassword: user.mustChangePassword,
   };
 }

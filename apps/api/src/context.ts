@@ -30,6 +30,7 @@ export interface AuthenticatedUser extends UserContext {
   username: string;
   fullName: string;
   email: string;
+  organizationName: string;
   /** Set after an administrator issues a temporary password; only the auth endpoints work until changed. */
   mustChangePassword: boolean;
 }
@@ -47,13 +48,16 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     username: string;
     full_name: string;
     email: string;
+    organization_name: string | null;
     status: string;
     is_active: boolean;
     must_change_password: boolean | null;
   }>(
     `SELECT u.user_id, u.tenant_id, u.organization_id, u.username::text, u.full_name, u.email::text, u.status, u.is_active,
-            c.must_change_password
-       FROM users u LEFT JOIN user_credentials c ON c.user_id = u.user_id
+            c.must_change_password, o.name AS organization_name
+       FROM users u
+       LEFT JOIN user_credentials c ON c.user_id = u.user_id
+       LEFT JOIN organizations o ON o.organization_id = u.organization_id
       WHERE u.user_id = $1`,
     [userId]
   );
@@ -82,6 +86,7 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     username: user.username,
     fullName: user.full_name,
     email: user.email,
+    organizationName: user.organization_name ?? '',
     mustChangePassword: user.must_change_password === true,
     // Users without any role get the least-privileged baseline.
     role: roles[0] ?? 'HOST',
@@ -91,6 +96,11 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     sessionId,
     mfaVerified: false,
   };
+}
+
+/** True when the policy engine grants `permission` (no throw, for shaping responses). */
+export function can(user: UserContext, permission: PermissionAction): boolean {
+  return evaluateAccess(user, permission, { tenantId: user.tenantId }).allowed;
 }
 
 /** Enforces RBAC/ABAC through the shared policy engine; throws 403 with a generic message. */

@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import type { PermissionAction } from '@vms/permissions';
 import { z } from 'zod';
 import type { RouteContext } from '../app.js';
 import { writeAudit } from '../audit.js';
-import { authorize, canAccessSite, permissionOnlyFrom, type AuthenticatedUser } from '../context.js';
+import { authorize, can, canAccessSite, permissionOnlyFrom, type AuthenticatedUser } from '../context.js';
 import { isUuid, type Tx } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 
@@ -151,7 +152,23 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
            (SELECT count(*) FROM gate_events WHERE event_timestamp::date = current_date AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "gateEventsToday"`,
         [scope]
       );
-      return rows[0];
+      // Each count is returned only to roles that may read the records behind it (null otherwise),
+      // so the dashboard never reveals totals a role could not list itself.
+      const summary = rows[0] as Record<string, number>;
+      const needs: Record<string, PermissionAction> = {
+        visitorsOnSite: 'VISITOR_READ',
+        visitorsToday: 'VISITOR_READ',
+        visitorApprovalsPending: 'VISITOR_READ',
+        contractorCompanies: 'CONTRACTOR_READ',
+        openWorkOrders: 'CONTRACTOR_READ',
+        openServiceWorkOrders: 'SERVICE_READ',
+        customerAccounts: 'CUSTOMER_READ',
+        upcomingCustomerVisits: 'CUSTOMER_READ',
+        materialMovementsToday: 'MATERIAL_READ',
+        registeredVehicles: 'VEHICLE_READ',
+        gateEventsToday: 'GATE_VIEW',
+      };
+      return Object.fromEntries(Object.entries(summary).map(([k, v]) => [k, needs[k] && !can(user, needs[k]) ? null : v]));
     })
   );
 
@@ -409,16 +426,31 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
   app.get('/api/v1/audit-logs', async request =>
     ctx.asUser(request, async (tx, user) => {
       authorize(user, 'AUDIT_LOG_READ');
-      const q = Paging.extend({ entityId: z.string().max(64).optional() }).parse(request.query);
+      const q = Paging.extend({
+        entityId: z.string().max(64).optional(),
+        entityType: z.string().trim().max(64).optional(),
+        action: z.string().trim().max(64).optional(),
+        search: z.string().trim().max(100).optional(),
+        from: z.string().datetime({ offset: true }).optional(),
+      }).parse(request.query);
+      const where = `($1::text IS NULL OR a.entity_id = $1)
+            AND ($5::timestamptz IS NULL OR a."timestamp" >= $5)
+            AND ($2::text IS NULL OR a.entity_type = $2)
+            AND ($3::text IS NULL OR a.action = $3)
+            AND ($4::text IS NULL OR a.entity_id ILIKE '%' || $4 || '%' OR u.full_name ILIKE '%' || $4 || '%' OR u.username::text ILIKE '%' || $4 || '%')`;
+      const params = [q.entityId ?? null, q.entityType ?? null, q.action ?? null, q.search?.replace(/[%_\\]/g, m => `\\${m}`) ?? null, q.from ?? null];
       const { rows } = await tx.query(
-        `SELECT audit_id AS "id", "timestamp", actor_id AS "actorId", actor_role AS "actorRole", action,
-                entity_type AS "entityType", entity_id AS "entityId", request_id AS "requestId", reason,
+        `SELECT a.audit_id AS "id", a."timestamp", a.actor_id AS "actorId", u.full_name AS "actorName", a.actor_role AS "actorRole",
+                a.action, a.entity_type AS "entityType", a.entity_id AS "entityId", a.request_id AS "requestId", a.reason,
                 count(*) OVER()::int AS "total"
-           FROM audit_logs WHERE ($1::text IS NULL OR entity_id = $1)
-          ORDER BY "timestamp" DESC LIMIT $2 OFFSET $3`,
-        [q.entityId ?? null, q.limit, q.offset]
+           FROM audit_logs a LEFT JOIN users u ON u.user_id::text = a.actor_id
+          WHERE ${where}
+          ORDER BY a."timestamp" DESC LIMIT $6 OFFSET $7`,
+        [...params, q.limit, q.offset]
       );
-      return withTotal(rows, q, () => tx.query('SELECT count(*)::int AS n FROM audit_logs WHERE ($1::text IS NULL OR entity_id = $1)', [q.entityId ?? null]));
+      return withTotal(rows, q, () =>
+        tx.query(`SELECT count(*)::int AS n FROM audit_logs a LEFT JOIN users u ON u.user_id::text = a.actor_id WHERE ${where}`, params)
+      );
     })
   );
 }
