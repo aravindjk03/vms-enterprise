@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { OutboxWorker } from '../../apps/api/src/jobs/outbox-worker.js';
 import { captureTransportActivity, TRANSPORT_CAPTURED_EVENT } from '../../apps/api/src/jobs/esg-capture.js';
+import { withTenant } from '../../apps/api/src/db.js';
 import { ADMIN_URL, addUser, createTestEnv, type Session, type TestEnv } from './helpers.js';
 
 const T = '00000000-0000-0000-0000-000000000001';
@@ -459,5 +460,16 @@ describe('Part 9: Service / Work Management (API + PostgreSQL)', { skip: !ADMIN_
     assert.equal(noContext.rows[0].n, 0);
     await assert.rejects(env.appDb.query('DELETE FROM service_status_history'), /permission denied/);
     assert.equal((await alpha.get(`/api/v1/service/work-orders/${randomUUID()}`)).statusCode, 404);
+
+    // Legacy child table without tenant_id is scoped through its parent work order (migration 008).
+    const RIVAL = '00000000-0000-0000-0000-0000000000b2';
+    const zone = (await env.owner.query('SELECT zone_id FROM zones WHERE site_id = $1 LIMIT 1', [DETROIT])).rows[0].zone_id;
+    const insertLocation = 'INSERT INTO service_work_locations (work_order_id, zone_id, specific_location) VALUES ($1, $2, $3)';
+    await withTenant(env.appDb, T, tx => tx.query(insertLocation, [woA, zone, 'Bay 4']));
+    const countLocations = (tenantId: string) =>
+      withTenant(env.appDb, tenantId, async tx => (await tx.query('SELECT count(*)::int AS n FROM service_work_locations')).rows[0].n);
+    assert.equal(await countLocations(T), 1);
+    assert.equal(await countLocations(RIVAL), 0);
+    await assert.rejects(withTenant(env.appDb, RIVAL, tx => tx.query(insertLocation, [woA, zone, 'Injected'])), /row-level security/);
   });
 });
