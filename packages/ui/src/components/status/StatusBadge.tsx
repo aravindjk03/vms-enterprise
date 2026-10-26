@@ -123,7 +123,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     }
   };
 
-  const displayText = label || status.replace(/_/g, ' ').toUpperCase();
+  const words = status.replace(/_/g, ' ').toLowerCase();
+  const displayText = label || words.charAt(0).toUpperCase() + words.slice(1);
 
   const sizeStyles: Record<string, React.CSSProperties> = {
     micro: {
@@ -151,10 +152,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         display: 'inline-flex',
         alignItems: 'center',
         gap: '4px',
-        borderRadius: radius.sm,
+        borderRadius: radius.full,
         fontWeight: typography.fontWeight.semibold,
-        letterSpacing: '0.03em',
-        textTransform: 'uppercase',
         backgroundColor: token.bg,
         color: token.fg,
         border: `1px solid ${token.border}`,

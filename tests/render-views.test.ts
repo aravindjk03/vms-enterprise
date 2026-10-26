@@ -82,7 +82,7 @@ test('Browser & SSR Rendering Verification for All Foundation Views', async (t) 
       })
     );
     assert.ok(visitorHtml.includes('Aravind Swaminathan'), 'Must render visitor name');
-    assert.ok(visitorHtml.includes('Siemens Industrial Automation'), 'Must render visitor company');
+    assert.ok(visitorHtml.includes('Sievert Industrial Automation'), 'Must render visitor company');
     // The developer page-state switcher is not shipped to users.
     for (const devState of ['NO_PERMISSION', 'LOADING', 'EMPTY']) {
       assert.ok(!visitorHtml.includes(`>${devState}<`), `Must not render the ${devState} state switcher`);
@@ -94,7 +94,7 @@ test('Browser & SSR Rendering Verification for All Foundation Views', async (t) 
     assert.ok(appHtml.includes('VMS Enterprise'), 'Must render top brand');
     assert.ok(appHtml.includes('Northwind Tyres &amp; Polymers') || appHtml.includes('Northwind Tyres & Polymers'), 'Must render organization switcher (fictional sample tenant)');
     assert.ok(!appHtml.includes('MRF'), 'Sample data must not use a real company as the tenant');
-    assert.ok(appHtml.includes('Executive Dashboard'), 'Must render left nav dashboard item');
+    assert.ok(appHtml.includes('Overview'), 'Must render left nav dashboard item');
     assert.ok(appHtml.includes('Visitor'), 'Must render left nav visitor domain');
     assert.ok(appHtml.includes('Contractor'), 'Must render left nav contractor domain');
     assert.ok(appHtml.includes('Gate Console'), 'Must render left nav gate domain');

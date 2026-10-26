@@ -21,6 +21,10 @@ export interface SessionUser {
   siteIds: string[];
   defaultSiteId: string | null;
   permissions: string[];
+  email?: string;
+  organizationName?: string;
+  /** Signed in with a temporary password: only the password change screen is available. */
+  mustChangePassword?: boolean;
 }
 
 interface TokenResponse {
@@ -38,6 +42,14 @@ export class ApiError extends Error {
   ) {
     super(message);
   }
+}
+
+type DemoBackend = (method: string, path: string, body: Record<string, unknown> | undefined) => Promise<unknown>;
+let demoBackend: DemoBackend | null = null;
+
+/** Static demo build only: requests are answered in the browser from sample data and never reach a network. */
+export function setDemoBackend(handler: DemoBackend | null): void {
+  demoBackend = handler;
 }
 
 let accessToken: string | null = null;
@@ -85,6 +97,11 @@ export async function probeApi(): Promise<'live' | 'absent' | 'unreachable'> {
   } catch {
     return 'unreachable';
   }
+}
+
+/** Changes the signed-in user's password; returns the refreshed user (no longer flagged for change). */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<SessionUser> {
+  return apiRequest<SessionUser>('/api/v1/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } });
 }
 
 export async function login(tenantCode: string, username: string, password: string): Promise<SessionUser> {
@@ -150,6 +167,7 @@ export async function apiRequest<T>(
   path: string,
   init: { method?: string; body?: unknown; idempotencyKey?: string } = {}
 ): Promise<T> {
+  if (demoBackend) return (await demoBackend(init.method ?? 'GET', path, init.body as Record<string, unknown> | undefined)) as T;
   const send = () =>
     fetch(`${API_BASE}${path}`, {
       method: init.method ?? 'GET',

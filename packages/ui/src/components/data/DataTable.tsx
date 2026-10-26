@@ -141,7 +141,7 @@ export function DataTable<T extends Record<string, unknown>>({
           <thead
             style={{
               backgroundColor: colors.slate[50],
-              borderBottom: `1px solid ${colors.slate[300]}`,
+              borderBottom: `1px solid ${colors.slate[200]}`,
               position: 'sticky',
               top: 0,
               zIndex: 10,
@@ -164,11 +164,9 @@ export function DataTable<T extends Record<string, unknown>>({
                   style={{
                     width: col.width,
                     padding: cellPadding,
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                    color: colors.slate[600],
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: colors.slate[500],
                     textAlign: col.align || 'left',
                     cursor: col.sortable && onSort ? 'pointer' : 'default',
                     userSelect: 'none',

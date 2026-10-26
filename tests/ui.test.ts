@@ -42,10 +42,10 @@ test('UI Design Tokens & Status System Invariants', async (t) => {
 
   await t.test('enforces compact industrial radius without bloated consumer bubbles', () => {
     assert.equal(radius.none, '0px');
-    assert.equal(radius.sm, '2px');
-    assert.equal(radius.md, '4px');
-    assert.equal(radius.lg, '6px');
-    assert.equal(radius.xl, '8px');
+    assert.equal(radius.sm, '4px');
+    assert.equal(radius.md, '6px');
+    assert.equal(radius.lg, '8px');
+    assert.equal(radius.xl, '12px');
     // Deliberately no oversized radii like 16px/24px
     assert.equal((radius as any)['2xl'], undefined);
   });

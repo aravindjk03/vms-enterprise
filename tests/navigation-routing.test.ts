@@ -81,8 +81,8 @@ test('Section 41 Page Inventory & Route Dispatch Verification', async (t) => {
   await t.test('Section 6 full navigation hierarchy items are present in nav structure', () => {
     const appElement = React.createElement(App);
     const html = renderToString(appElement);
-    // LeftNav renders
-    assert.ok(html.includes('vms-left-nav'), 'LeftNav sidebar rendered');
+    // The sidebar is a labelled navigation landmark
+    assert.ok(html.includes('aria-label="Main navigation"'), 'Main navigation rendered');
   });
 
   await t.test('All Section 41 inventory routes render correctly without crashing', () => {

@@ -17,12 +17,11 @@ export const card: React.CSSProperties = {
 
 export const th: React.CSSProperties = {
   textAlign: 'left',
-  fontSize: '11px',
-  fontWeight: 700,
-  letterSpacing: '0.04em',
-  textTransform: 'uppercase',
+  fontSize: '12px',
+  fontWeight: 600,
   color: colors.slate[500],
-  padding: '10px 12px',
+  padding: '10px 14px',
+  backgroundColor: colors.slate[50],
   borderBottom: `1px solid ${colors.slate[200]}`,
   whiteSpace: 'nowrap',
 };
@@ -30,7 +29,7 @@ export const th: React.CSSProperties = {
 export const td: React.CSSProperties = {
   fontSize: '13px',
   color: colors.slate[800],
-  padding: '10px 12px',
+  padding: '11px 14px',
   borderBottom: `1px solid ${colors.slate[100]}`,
   verticalAlign: 'middle',
 };
@@ -44,9 +43,11 @@ export function buttonStyle(variant: 'primary' | 'secondary' | 'danger' = 'secon
   return {
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: '6px',
-    padding: '6px 10px',
-    fontSize: '12px',
+    minHeight: '34px',
+    padding: '0 12px',
+    fontSize: '13px',
     fontWeight: 600,
     color: palette.fg,
     backgroundColor: palette.bg,
@@ -107,15 +108,25 @@ const STATUS_TONE: Record<string, keyof typeof colors.status> = {
   CRITICAL: 'danger',
 };
 
+/** 'ON_PREMISES' -> 'On premises'. */
+export const sentence = (value: string | null | undefined) => {
+  if (!value) return '—';
+  const words = value.replace(/_/g, ' ').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
 export const StatusPill: React.FC<{ status: string | null | undefined }> = ({ status }) => {
   const tone = colors.status[STATUS_TONE[status ?? ''] ?? 'neutral'];
   return (
     <span
       style={{
-        display: 'inline-block',
-        fontSize: '11px',
-        fontWeight: 700,
-        padding: '2px 8px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        fontSize: '12px',
+        fontWeight: 600,
+        lineHeight: '18px',
+        padding: '1px 9px 1px 7px',
         borderRadius: radius.full,
         color: tone.fg,
         backgroundColor: tone.bg,
@@ -123,7 +134,8 @@ export const StatusPill: React.FC<{ status: string | null | undefined }> = ({ st
         whiteSpace: 'nowrap',
       }}
     >
-      {(status ?? '—').replace(/_/g, ' ')}
+      <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.8 }} />
+      {sentence(status)}
     </span>
   );
 };
@@ -144,24 +156,6 @@ export const ErrorNote: React.FC<{ error: string | null }> = ({ error }) =>
       {error}
     </div>
   ) : null;
-
-export const LiveBadge: React.FC = () => (
-  <span
-    style={{
-      fontSize: '10px',
-      fontWeight: 800,
-      letterSpacing: '0.06em',
-      color: colors.status.success.fg,
-      backgroundColor: colors.status.success.bg,
-      border: `1px solid ${colors.status.success.border}`,
-      borderRadius: radius.full,
-      padding: '2px 8px',
-      whiteSpace: 'nowrap',
-    }}
-  >
-    LIVE DATA
-  </span>
-);
 
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
@@ -227,75 +221,18 @@ export const fmtDate = (value: string | null | undefined) => {
 export const localDateString = (date: Date = new Date()) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-export const PageHeader: React.FC<{ title: string; subtitle: string; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '16px' }}>
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: colors.slate[900] }}>{title}</h1>
-        <LiveBadge />
+export const PageHeader: React.FC<{ title: string; subtitle: string; actions?: React.ReactNode; meta?: React.ReactNode }> = ({ title, subtitle, actions, meta }) => (
+  <header style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+    <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0, fontSize: '22px', lineHeight: '30px', fontWeight: 700, letterSpacing: '-0.01em', color: colors.slate[900] }}>{title}</h1>
+        {meta}
       </div>
-      <p style={{ margin: '4px 0 0', fontSize: '13px', color: colors.slate[500] }}>{subtitle}</p>
+      <p style={{ margin: '4px 0 0', fontSize: '14px', lineHeight: '20px', color: colors.slate[500], maxWidth: '760px' }}>{subtitle}</p>
     </div>
-    {actions && <div style={{ display: 'flex', gap: '8px' }}>{actions}</div>}
-  </div>
+    {actions && <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{actions}</div>}
+  </header>
 );
-
-// ---------------------------------------------------------------------------
-// Dashboard KPI strip
-// ---------------------------------------------------------------------------
-
-interface Summary {
-  visitorsOnSite: number;
-  visitorsToday: number;
-  visitorApprovalsPending: number;
-  contractorCompanies: number;
-  openWorkOrders: number;
-  openServiceWorkOrders: number;
-  customerAccounts: number;
-  upcomingCustomerVisits: number;
-  materialMovementsToday: number;
-  registeredVehicles: number;
-  gateEventsToday: number;
-}
-
-export const LiveKpiStrip: React.FC = () => {
-  const { data, error, loading, reload } = useApi<Summary>('/api/v1/dashboard/summary');
-  const tiles: Array<[string, keyof Summary]> = [
-    ['Visitors on site', 'visitorsOnSite'],
-    ['Visits scheduled today', 'visitorsToday'],
-    ['Visitor approvals pending', 'visitorApprovalsPending'],
-    ['Gate events today', 'gateEventsToday'],
-    ['Contractor companies', 'contractorCompanies'],
-    ['Open contractor work orders', 'openWorkOrders'],
-    ['Open service work orders', 'openServiceWorkOrders'],
-    ['Customer accounts', 'customerAccounts'],
-    ['Registered vehicles', 'registeredVehicles'],
-  ];
-  return (
-    <section style={{ ...card, padding: '16px', marginBottom: '16px' }} aria-label="Live operational summary">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <strong style={{ fontSize: '14px', color: colors.slate[900] }}>Live operational summary</strong>
-          <LiveBadge />
-        </div>
-        <button type="button" style={buttonStyle()} onClick={() => void reload()} aria-label="Refresh summary">
-          <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} /> Refresh
-        </button>
-      </div>
-      <ErrorNote error={error} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: '12px' }}>
-        {tiles.map(([label, key]) => (
-          <div key={key} style={{ border: `1px solid ${colors.slate[100]}`, borderRadius: radius.md, padding: '12px', backgroundColor: colors.slate[50] }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: colors.slate[500], textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: colors.slate[900], marginTop: '4px', fontVariantNumeric: 'tabular-nums' }}>
-              {data ? data[key].toLocaleString() : '—'}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-};
 
 // ---------------------------------------------------------------------------
 // Visitor register (live)

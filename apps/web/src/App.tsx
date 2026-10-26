@@ -89,9 +89,15 @@ import { RulesEngineView } from './views/RulesEngineView.js';
 import { VisitorManagementView, type VisitorSubView } from './views/visitor/VisitorManagementView.js';
 import { CustomerManagementView, type CustomerSubView } from './views/customer/CustomerManagementView.js';
 import { ContractorManagementView, type ContractorSubView } from './views/contractor/ContractorManagementView.js';
-import { LiveKpiStrip, LiveTableView, LiveVisitorsView, renderDate, renderStatus } from './views/live/LiveViews.js';
+import { LiveTableView, LiveVisitorsView, renderDate, renderStatus } from './views/live/LiveViews.js';
+import { LiveDashboard } from './views/live/Dashboard.js';
+import { UsersView } from './views/live/admin/UsersView.js';
+import { RolesView } from './views/live/admin/RolesView.js';
+import { AuditLogView } from './views/live/admin/AuditLogView.js';
 import { ServiceModule, serviceNavFor } from './views/live/service/ServiceModule.js';
 import { apiRequest, type SessionUser } from './api/client.js';
+import { AppShell, menuIcons, type ShellMenuAction, type ShellNavGroup, type ShellNavItem } from './shell/AppShell.js';
+import { SiteSwitcher } from './shell/SiteSwitcher.js';
 
 export interface AppProps {
   initialRoute?: string;
@@ -100,13 +106,22 @@ export interface AppProps {
   session?: {
     user: SessionUser;
     onSignOut: () => void;
+    onChangePassword: () => void;
+  };
+  /** Demo build: the demo account the visitor signed in with (sample data, no API). */
+  demo?: {
+    name: string;
+    role: EnterpriseRole;
+    /** The demo account as a session user (role permissions), for the screens shared with the live console. */
+    user?: SessionUser;
+    onSignOut: () => void;
   };
 }
 
 /** Visitor routes that map onto a status filter of the live register. */
 /** Live screens per menu group, each shown when the user holds any of the listed permissions. */
 const LIVE_NAV: Record<string, Array<{ route: string; label: string; anyOf: string[] }>> = {
-  dashboard: [{ route: '/dashboard', label: 'Executive Dashboard', anyOf: [] }],
+  dashboard: [{ route: '/dashboard', label: 'Overview', anyOf: [] }],
   visitors: [
     { route: '/visitors', label: 'Visitor Register', anyOf: ['VISITOR_READ'] },
     { route: '/visitors/new', label: 'Register Visitor', anyOf: ['VISITOR_WRITE'] },
@@ -118,15 +133,23 @@ const LIVE_NAV: Record<string, Array<{ route: string; label: string; anyOf: stri
   ],
   customers: [{ route: '/customers/accounts', label: 'Customer Accounts', anyOf: ['CUSTOMER_READ'] }],
   contractors: [{ route: '/contractors/companies', label: 'Contractor Companies', anyOf: ['CONTRACTOR_READ'] }],
-  admin: [{ route: '/admin/audit', label: 'Audit Logs', anyOf: ['AUDIT_LOG_READ'] }],
+  admin: [
+    { route: '/admin/users', label: 'Users', anyOf: ['USER_MANAGE'] },
+    { route: '/admin/roles', label: 'Roles & permissions', anyOf: ['USER_MANAGE'] },
+    { route: '/admin/audit', label: 'Audit log', anyOf: ['AUDIT_LOG_READ'] },
+  ],
 };
+
+/** Screens the demo build renders with the live console's components (answered by the in-browser demo backend). */
+const DEMO_SHARED_ROUTES = ['/dashboard', '/admin/users', '/admin/roles', '/admin/audit'];
 
 /** Roles that see the sample-data preview screens of a group; tenant-wide admins see what super admins see. */
 function holdsAnyRole(user: SessionUser, roles: string[]): boolean {
   return [user.role, ...user.roles].some(r => roles.includes(r) || (r === 'ORGANIZATION_ADMIN' && roles.includes('SUPER_ADMIN')));
 }
 
-type NavItem = { route: string; label: string; sample?: boolean };
+/** `roles` limits a single screen further than its group does. */
+type NavItem = { route: string; label: string; sample?: boolean; roles?: string[] };
 
 function liveNavDomains<D extends { id: string; roles: string[]; items: NavItem[] }>(
   domains: D[],
@@ -146,6 +169,7 @@ function liveNavDomains<D extends { id: string; roles: string[]; items: NavItem[
         ? []
         : d.items
             .filter(i => !liveRoutes.has(i.route) && !(d.id === 'visitors' && i.route in LIVE_VISITOR_FILTERS))
+            .filter(i => !i.roles || holdsAnyRole(user, i.roles))
             .map(i => ({ ...i, sample: true }));
     if (liveItems.length) live.push({ ...d, items: [...liveItems, ...sampleItems] });
     // Groups with no live screen sit under the Preview heading, so their items need no tag.
@@ -206,42 +230,22 @@ const LIVE_VISITOR_FILTERS: Record<string, string> = {
   '/visitors/cancelled': 'CANCELLED',
 };
 
-/** True while the viewport matches `query` (re-evaluated on resize / rotation). */
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const update = () => setMatches(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, [query]);
-  return matches;
-}
-
 export const App: React.FC<AppProps> = ({ 
   initialRoute = '/dashboard', 
   initialRole = 'SUPER_ADMIN',
   session,
+  demo,
 }) => {
   // Navigation & View Routing State
   const [activeRoute, setActiveRoute] = useState<string>(initialRoute);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  // Phones and small tablets: the sidebar becomes a drawer and the header keeps only icons.
-  const isCompact = useMediaQuery('(max-width: 900px)');
-  const showSidebar = !isCompact || isMobileMenuOpen;
-  const railCollapsed = !isCompact && isSidebarCollapsed;
-  const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
   const goTo = (route: string) => {
     setSelectedDetailItem(null);
     setActiveRoute(route);
-    if (isCompact) setIsMobileMenuOpen(false);
   };
 
   // Authenticated Role & Scope State
-  // Signed-in sessions take the role the server assigned; the persona switcher exists only in the demo.
-  const [activeRole, setActiveRole] = useState<EnterpriseRole>(session?.user.role ?? initialRole);
+  // The role comes from the server (live) or from the demo account the visitor signed in with.
+  const activeRole: EnterpriseRole = session?.user.role ?? demo?.role ?? initialRole;
   const [activeSiteContext, setActiveSiteContext] = useState<SiteContextOption>(DEMO_SITES[0]);
   // Signed in: the site switcher lists the sites the server says this user may access (never demo sites).
   const [liveSites, setLiveSites] = useState<SiteContextOption[]>([]);
@@ -277,7 +281,6 @@ export const App: React.FC<AppProps> = ({
   const [isEmergencyActive, setIsEmergencyActive] = useState<boolean>(false);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
   const [isSirenActive, setIsSirenActive] = useState<boolean>(false);
-  const [syncState, setSyncState] = useState<GateSyncState>('ONLINE');
 
   // Global Keyboard Shortcuts (Ctrl/Cmd + K for Command Palette)
   useEffect(() => {
@@ -300,8 +303,8 @@ export const App: React.FC<AppProps> = ({
       roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER', 'SECURITY_GUARD', 'RECEPTIONIST', 'HOST', 'EHS_MANAGER', 'ESG_MANAGER', 'AUDITOR', 'MANAGEMENT', 'SERVICE_MANAGER'],
       items: [
         { route: '/dashboard', label: 'Executive Dashboard' },
-        { route: '/dashboard/operations', label: 'Operations Dashboard' },
-        { route: '/dashboard/security', label: 'Security Dashboard' },
+        { route: '/dashboard/operations', label: 'Operations Dashboard', roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER', 'MANAGEMENT', 'AUDITOR'] },
+        { route: '/dashboard/security', label: 'Security Dashboard', roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER', 'SECURITY_GUARD', 'MANAGEMENT', 'AUDITOR'] },
       ],
     },
     {
@@ -526,22 +529,37 @@ export const App: React.FC<AppProps> = ({
   type NavDomain = (typeof baseNavDomains)[number] & { preview?: boolean };
   const navDomains: NavDomain[] = session ? liveNavDomains(baseNavDomains, session.user) : baseNavDomains;
 
-  // Demo build: role-aware visibility for the persona chosen in the role switcher.
-  const visibleDomains = session ? navDomains : navDomains.filter((d) => d.roles.includes(activeRole));
+  // Demo build: the demo account's role decides the menu. Overview, Users, Roles and the audit log use the
+  // same screens as the live console, answered in the browser from sample data (see demo/demoBackend.ts).
+  const demoUser = demo?.user;
+  const demoAdminItems: NavItem[] = demoUser
+    ? (LIVE_NAV.admin ?? []).filter((i) => i.anyOf.some((p) => demoUser.permissions.includes(p))).map(({ route, label }) => ({ route, label }))
+    : [];
+  const visibleDomains = session
+    ? navDomains
+    : navDomains
+        .map((d) => {
+          const forRole = (items: NavItem[]) => items.filter((i) => !i.roles || i.roles.includes(activeRole));
+          if (d.id === 'dashboard') return { ...d, items: forRole(d.items).map((i) => (i.route === '/dashboard' ? { ...i, label: 'Overview' } : i)) };
+          if (d.id !== 'admin') return { ...d, items: forRole(d.items) };
+          const sample = d.roles.includes(activeRole) ? d.items.filter((i) => i.route !== '/admin/audit') : [];
+          return { ...d, roles: demoAdminItems.length ? [...d.roles, activeRole] : d.roles, items: [...demoAdminItems, ...sample] };
+        })
+        .filter((d) => d.roles.includes(activeRole) && d.items.length > 0);
 
   // Breadcrumbs Generator
   const getBreadcrumbs = () => {
     if (selectedDetailItem) {
       return [selectedDetailItem.entityType, selectedDetailItem.item.id || 'Entity Details'];
     }
-    for (const d of navDomains) {
+    for (const d of visibleDomains) {
       const match = d.items.find((item) => item.route === activeRoute);
       if (match) {
         return [d.label, match.label];
       }
     }
     if (activeRoute === '/kiosk') return ['Terminals', 'Self-Service Kiosk'];
-    return ['Dashboard', 'Executive Console'];
+    return ['Dashboard', 'Overview'];
   };
 
   const breadcrumbs = getBreadcrumbs();
@@ -645,13 +663,15 @@ export const App: React.FC<AppProps> = ({
   const renderLiveContent = (user: SessionUser): React.ReactNode | null => {
     if (activeRoute === '/dashboard') {
       return (
-        <>
-          <LiveKpiStrip />
-          <SampleDataNotice text="The analytics panels below are illustrative and not yet connected to live data." />
-          <ExecutiveDashboardView />
-        </>
+        <LiveDashboard
+          user={user}
+          navigate={goTo}
+          canOpen={(route) => allowedRoutes.has(route) || (!!session && route === '/services/new' && user.permissions.includes('SERVICE_REQUEST_CREATE'))}
+        />
       );
     }
+    if (activeRoute === '/admin/users') return <UsersView user={user} />;
+    if (activeRoute === '/admin/roles') return <RolesView />;
     if (activeRoute.startsWith('/services')) {
       return <ServiceModule route={activeRoute} user={user} navigate={setActiveRoute} />;
     }
@@ -699,27 +719,39 @@ export const App: React.FC<AppProps> = ({
         />
       );
     }
-    if (activeRoute === '/admin/audit') {
-      return (
-        <LiveTableView
-          title="Audit ledger"
-          subtitle="Append-only record of sign-ins and every state change (cannot be edited or deleted)."
-          path="/api/v1/audit-logs"
-          columns={[
-            { key: 'timestamp', label: 'Time', render: renderDate },
-            { key: 'action', label: 'Action' },
-            { key: 'actorRole', label: 'Actor role' },
-            { key: 'entityType', label: 'Entity' },
-            { key: 'entityId', label: 'Entity ID' },
-            { key: 'reason', label: 'Reason' },
-          ]}
-        />
-      );
-    }
+    if (activeRoute === '/admin/audit') return <AuditLogView />;
     return null;
   };
 
+  // Access control in the console mirrors the menu: a role only ever renders screens in its own menu
+  // (search, shortcuts and links cannot reach others). The API enforces the same rules server-side.
+  const allowedRoutes = new Set(visibleDomains.flatMap((d) => d.items.map((i) => i.route)));
+  // The visitor, customer and contractor modules also open sub-screens from tabs inside the page; those are
+  // reachable when the role sees that module's sample screens (live screens never take this path).
+  const moduleOf = (route: string) => `/${route.split('/')[1] ?? ''}`;
+  const tabbedModules = new Set(
+    visibleDomains
+      .filter((d) => ['visitors', 'customers', 'contractors'].includes(d.id) && (!session || d.preview || d.items.some((i) => (i as NavItem).sample)))
+      .map((d) => moduleOf(d.items[0].route))
+  );
+  const routeAllowed =
+    allowedRoutes.has(activeRoute) ||
+    tabbedModules.has(moduleOf(activeRoute)) ||
+    (!!session && activeRoute.startsWith('/services')) ||
+    (!session && activeRoute === '/kiosk');
+
   const renderMainContent = () => {
+    if (!selectedDetailItem && !routeAllowed) {
+      return (
+        <NoPermissionStateView
+          requiredRoleOrCapability="This screen is not part of your role. Ask an administrator if you need access."
+          onGoBack={() => goTo('/dashboard')}
+        />
+      );
+    }
+    if (demoUser && !selectedDetailItem && DEMO_SHARED_ROUTES.includes(activeRoute)) {
+      return renderLiveContent(demoUser);
+    }
     if (session && !selectedDetailItem) {
       const live = renderLiveContent(session.user);
       if (live) return live;
@@ -1249,7 +1281,7 @@ export const App: React.FC<AppProps> = ({
   };
 
   // The kiosk is a visitor-facing terminal: full screen, without the operator shell around it.
-  if (activeRoute === '/kiosk' && !selectedDetailItem) {
+  if (activeRoute === '/kiosk' && !selectedDetailItem && routeAllowed) {
     return (
       <div className="tw" style={{ minHeight: '100vh', backgroundColor: colors.slate[50] }}>
         <KioskWelcomeView onExitKiosk={() => setActiveRoute('/dashboard')} />
@@ -1258,469 +1290,104 @@ export const App: React.FC<AppProps> = ({
     );
   }
 
+  const roleLabel = (r: string) => r.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const shellGroups: ShellNavGroup[] = visibleDomains.map((d) => ({
+    id: d.id,
+    label: d.label,
+    icon: d.icon,
+    preview: d.preview,
+    items: d.items as ShellNavItem[],
+  }));
+  // Search opens a palette of the screens this user can reach (plus demo shortcuts in the demo).
+  const navCommands = shellGroups.flatMap((g) =>
+    g.items.map((i) => ({
+      id: `nav-${i.route}`,
+      category: 'NAVIGATION' as const,
+      title: i.label,
+      subtitle: `${g.label}${i.sample || g.preview ? ' · sample data' : ''}`,
+      icon: g.icon,
+      onSelect: () => goTo(i.route),
+    }))
+  );
+  const switcherSites = (session ? liveSites : DEMO_SITES).map((s) => ({ siteId: s.siteId, siteName: s.siteName }));
+  const shellUser = session
+    ? { name: session.user.fullName, roleLabel: roleLabel(session.user.role), detail: session.user.email ?? session.user.username }
+    : { name: demo?.name ?? 'Demo user', roleLabel: `${roleLabel(activeRole)} · demo`, detail: 'Demo account · sample data only' };
+  const userActions: ShellMenuAction[] = session
+    ? [
+        { label: 'Change password', icon: menuIcons.password, onSelect: session.onChangePassword },
+        { label: 'Sign out', icon: menuIcons.signOut, onSelect: session.onSignOut, tone: 'danger' },
+      ]
+    : [{ label: 'Sign out of demo', icon: menuIcons.signOut, onSelect: () => demo?.onSignOut(), tone: 'danger' }];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: colors.slate[50] }}>
-      {/* 1. PERSISTENT EMERGENCY BANNER (Section 29) */}
-      {isEmergencyActive && (
-        <Banner
-          type="emergency"
-          title="EMERGENCY MUSTER STATE ACTIVE"
-          message="Plant evacuation siren triggered for Chennai Facility. Turnstiles unlocked for egress."
-          actionLabel="Open Muster Station Board"
-          onAction={() => setIsEmergencyModalOpen(true)}
-          isPersistent
-        />
-      )}
-
-      {/* 2. TOP BAR (Section 5) */}
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          height: '48px',
-          padding: isCompact ? '0 10px' : '0 16px',
-          backgroundColor: colors.slate[900],
-          color: '#ffffff',
-          borderBottom: `1px solid ${colors.slate[800]}`,
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          gap: isCompact ? '8px' : '12px',
-          minWidth: 0,
-        }}
-      >
-        {/* Left: Menu toggle, Brand & Context Switcher (Section 7) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: isCompact ? '8px' : '12px', minWidth: 0 }}>
-          <button
-            type="button"
-            aria-label={isCompact ? (isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu') : isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-            aria-expanded={isCompact ? isMobileMenuOpen : !isSidebarCollapsed}
-            onClick={() => (isCompact ? setIsMobileMenuOpen(!isMobileMenuOpen) : setIsSidebarCollapsed(!isSidebarCollapsed))}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#ffffff',
-              cursor: 'pointer',
-              padding: '4px',
-              display: 'flex',
-            }}
-          >
-            <Menu size={18} />
-          </button>
-
-          <button
-            type="button"
-            aria-label="VMS Enterprise home"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer',
-              padding: '0 8px 0 0',
-              background: 'none',
-              border: 'none',
-              borderRight: isCompact ? 'none' : `1px solid ${colors.slate[700]}`,
-              color: '#ffffff',
-              whiteSpace: 'nowrap',
-            }}
-            onClick={() => goTo('/dashboard')}
-          >
-            <Shield size={18} color={colors.primary[500]} />
-            <strong style={{ fontSize: typography.fontSize.sm.size, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              {isCompact ? 'VMS' : 'VMS Enterprise'}
-            </strong>
-          </button>
-
-          {!isCompact && (!session || liveSites.length > 0) && (
-            <div style={{ minWidth: 0 }}>
-              <ContextSwitcher
-                currentContext={activeSiteContext}
-                availableSites={session ? liveSites : DEMO_SITES}
-                onSelectContext={setActiveSiteContext}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Center: Global Search & Command Palette Trigger (Section 8 & 9) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: isCompact ? '0 0 auto' : 1, minWidth: 0, maxWidth: '420px', margin: isCompact ? '0 0 0 auto' : '0 12px' }}>
-          {isCompact ? (
-            <button
-              type="button"
-              aria-label="Search"
-              onClick={() => setIsGlobalSearchOpen(true)}
-              style={{ display: 'flex', padding: '6px', background: colors.slate[800], border: `1px solid ${colors.slate[700]}`, borderRadius: radius.md, color: colors.slate[300], cursor: 'pointer' }}
-            >
-              <Search size={15} />
-            </button>
-          ) : (
-          <button
-            type="button"
-            onClick={() => setIsGlobalSearchOpen(true)}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '6px 12px',
-              backgroundColor: colors.slate[800],
-              border: `1px solid ${colors.slate[700]}`,
-              borderRadius: radius.md,
-              color: colors.slate[400],
-              fontSize: typography.fontSize.xs.size,
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-              <Search size={14} style={{ flexShrink: 0 }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Search visitors, vehicles, challans, documents…</span>
-            </div>
-            <kbd
-              style={{
-                backgroundColor: colors.slate[900],
-                border: `1px solid ${colors.slate[700]}`,
-                padding: '1px 5px',
-                borderRadius: radius.sm,
-                fontSize: '10px',
-                fontFamily: typography.fontFamily.mono,
-                color: colors.slate[300],
-              }}
-            >
-              Ctrl+K
-            </kbd>
-          </button>
-          )}
-        </div>
-
-        {/* Right: Emergency Siren, Gate Mode, Kiosk Mode, Notifications, Sync Status, Role Switcher.
-            The siren, gate/kiosk shortcuts, notifications and sync status are demo simulations, so a
-            signed-in (live) console does not show them. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: isCompact ? '6px' : '10px', minWidth: 0 }}>
-          {!session && (
+    <>
+      <AppShell
+        groups={shellGroups}
+        activeRoute={activeRoute}
+        onNavigate={goTo}
+        breadcrumbs={breadcrumbs}
+        organizationName={session ? session.user.organizationName || 'Your organization' : activeSiteContext.organizationName}
+        user={shellUser}
+        userActions={userActions}
+        onSearch={() => (session ? setIsCommandPaletteOpen(true) : setIsGlobalSearchOpen(true))}
+        banner={
+          isEmergencyActive ? (
+            <Banner
+              type="emergency"
+              title="Emergency muster active (demo)"
+              message={`Evacuation drill in progress at ${activeSiteContext.siteName}. Turnstiles unlocked for exit.`}
+              actionLabel="Open muster board"
+              onAction={() => setIsEmergencyModalOpen(true)}
+              isPersistent
+            />
+          ) : undefined
+        }
+        topbarRight={
           <>
-          {/* Emergency Siren Toggle */}
-          <button
-            type="button"
-            title="Toggle Plant Emergency State"
-            onClick={() => {
-              setIsEmergencyActive(!isEmergencyActive);
-              if (!isEmergencyActive) setIsEmergencyModalOpen(true);
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '4px 8px',
-              borderRadius: radius.sm,
-              backgroundColor: isEmergencyActive ? colors.status.danger.solid : 'transparent',
-              border: `1px solid ${isEmergencyActive ? 'transparent' : colors.slate[700]}`,
-              color: '#ffffff',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            <AlertOctagon size={14} color={isEmergencyActive ? '#ffffff' : colors.status.danger.solid} />
-            <span style={{ display: 'none' }}>EMERGENCY</span>
-          </button>
-
-          {/* Quick Gate Mode Trigger */}
-          {!isCompact && (
-          <Button
-            variant="ghost"
-            size="dense"
-            style={{ color: '#ffffff', border: `1px solid ${colors.slate[700]}` }}
-            leftIcon={<Shield size={13} />}
-            onClick={() => goTo('/gate')}
-          >
-            Gate Mode
-          </Button>
-          )}
-
-          {/* Quick Kiosk Mode Trigger */}
-          {!isCompact && (
-          <Button
-            variant="ghost"
-            size="dense"
-            style={{ color: '#ffffff', border: `1px solid ${colors.slate[700]}` }}
-            leftIcon={<Tablet size={13} />}
-            onClick={() => goTo('/kiosk')}
-          >
-            Kiosk
-          </Button>
-          )}
-
-          {/* Notification Center Popover */}
-          <NotificationCenter
-            notifications={DEMO_NOTIFICATIONS}
-            onNavigate={(url) => goTo(url)}
-          />
-
-          {/* Offline Sync State Indicator (Section 38) */}
-          {!isCompact && (
-          <SyncStatusIndicator
-            state={syncState}
-            compact
-            pendingCount={2}
-            onSyncTrigger={() => {
-              // Cycle through sync states for verification
-              const states: GateSyncState[] = ['ONLINE', 'SYNC_PENDING', 'SYNCING', 'SYNCED', 'OFFLINE', 'CONFLICT'];
-              const nextIdx = (states.indexOf(syncState) + 1) % states.length;
-              setSyncState(states[nextIdx]);
-            }}
-          />
-          )}
-          </>
-          )}
-
-          {session ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-              {!isCompact && (
-              <span
-                style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, maxWidth: '200px', minWidth: 0, color: '#ffffff' }}
-                title={`${session.user.fullName} (${session.user.username})`}
-              >
-                <span style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {session.user.fullName}
-                </span>
-                <span style={{ fontSize: '10px', color: colors.slate[400], whiteSpace: 'nowrap' }}>{session.user.role.replace(/_/g, ' ')}</span>
-              </span>
-              )}
-              <button
-                type="button"
-                onClick={session.onSignOut}
-                style={{
-                  backgroundColor: colors.slate[800],
-                  color: '#ffffff',
-                  border: `1px solid ${colors.slate[700]}`,
-                  padding: '4px 10px',
-                  borderRadius: radius.sm,
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Sign out
-              </button>
-            </div>
-          ) : (
-          /* Persona Role Switcher (demo build only) */
-          <select
-            aria-label="Switch User Persona Role"
-            value={activeRole}
-            onChange={(e) => setActiveRole(e.target.value as EnterpriseRole)}
-            style={{
-              backgroundColor: colors.slate[800],
-              color: '#ffffff',
-              border: `1px solid ${colors.slate[700]}`,
-              padding: '4px 8px',
-              borderRadius: radius.sm,
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              maxWidth: isCompact ? '120px' : undefined,
-              minWidth: 0,
-            }}
-          >
-            <option value="SUPER_ADMIN">Role: Super Admin</option>
-            <option value="SITE_ADMIN">Role: Site Admin</option>
-            <option value="SECURITY_MANAGER">Role: Security Manager</option>
-            <option value="SERVICE_MANAGER">Role: Service Manager</option>
-            <option value="SECURITY_GUARD">Role: Security Guard</option>
-            <option value="RECEPTIONIST">Role: Receptionist</option>
-            <option value="EHS_MANAGER">Role: EHS Safety Manager</option>
-            <option value="ESG_MANAGER">Role: ESG Sustainability Mgr</option>
-            <option value="HOST">Role: Host Employee</option>
-            <option value="AUDITOR">Role: Compliance Auditor</option>
-            <option value="MANAGEMENT">Role: Executive Management</option>
-          </select>
-          )}
-        </div>
-      </header>
-
-      {/* 3. APPLICATION BODY (LeftNav + MainContent) */}
-      <div style={{ display: 'flex', flex: 1, position: 'relative', minWidth: 0 }}>
-        {/* Drawer backdrop on small screens */}
-        {isCompact && isMobileMenuOpen && (
-          <div
-            aria-hidden="true"
-            onClick={() => setIsMobileMenuOpen(false)}
-            style={{ position: 'fixed', inset: '48px 0 0 0', backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 90 }}
-          />
-        )}
-        {/* LEFT NAVIGATION SIDEBAR (Sections 5 & 6) */}
-        {showSidebar && (
-        <aside
-          aria-label="Main navigation"
-          style={{
-            width: isCompact ? 'min(280px, 85vw)' : railCollapsed ? '60px' : '230px',
-            backgroundColor: '#ffffff',
-            borderRight: `1px solid ${colors.slate[200]}`,
-            display: 'flex',
-            flexDirection: 'column',
-            transition: 'width 150ms ease',
-            flexShrink: 0,
-            overflowX: 'hidden',
-            ...(isCompact
-              ? { position: 'fixed', top: '48px', bottom: 0, left: 0, zIndex: 95, boxShadow: '0 10px 30px rgba(15, 23, 42, 0.25)' }
-              : { position: 'sticky', top: '48px', alignSelf: 'flex-start', height: 'calc(100vh - 48px)' }),
-          }}
-          className="vms-left-nav"
-        >
-          {/* On small screens the site switcher lives in the drawer instead of the header. */}
-          {isCompact && (!session || liveSites.length > 0) && (
-            <div style={{ padding: '10px 10px 6px', borderBottom: `1px solid ${colors.slate[200]}`, backgroundColor: colors.slate[900] }}>
-              <ContextSwitcher
-                currentContext={activeSiteContext}
-                availableSites={session ? liveSites : DEMO_SITES}
-                onSelectContext={setActiveSiteContext}
-              />
-            </div>
-          )}
-          {/* Navigation Items List (min-height 0 lets it scroll inside the fixed-height sidebar) */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '8px' }}>
-            {visibleDomains.map((domain, index) => {
-              const isDomainActive = domain.items.some((item) => item.route === activeRoute);
-              const firstPreview = domain.preview && !visibleDomains[index - 1]?.preview;
-
-              return (
-                <div key={domain.id} style={{ marginBottom: '4px' }}>
-                  {firstPreview && !railCollapsed && (
-                    <div style={{ margin: '14px 10px 6px', paddingTop: '10px', borderTop: `1px solid ${colors.slate[200]}` }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: colors.slate[500] }}>Preview</div>
-                      <div style={{ fontSize: '11px', color: colors.slate[500], marginTop: '2px' }}>Modules on sample data, not connected yet</div>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      isCompact ? setExpandedDomain(expandedDomain === domain.id ? null : domain.id) : goTo(domain.items[0].route)
-                    }
-                    aria-expanded={isDomainActive || expandedDomain === domain.id}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: railCollapsed ? 'center' : 'space-between',
-                      padding: '8px 10px',
-                      borderRadius: radius.md,
-                      border: 'none',
-                      backgroundColor: isDomainActive ? colors.primary[50] : 'transparent',
-                      color: isDomainActive ? colors.primary[700] : colors.slate[700],
-                      cursor: 'pointer',
-                      fontSize: typography.fontSize.xs.size,
-                      fontWeight: isDomainActive ? 700 : 500,
-                      transition: 'background-color 80ms ease',
-                    }}
-                    title={railCollapsed ? domain.label : undefined}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ color: isDomainActive ? colors.primary[600] : colors.slate[500] }}>
-                        {domain.icon}
-                      </span>
-                      {!railCollapsed && <span>{domain.label}</span>}
-                    </div>
-                  </button>
-
-                  {/* Sub-items if domain active and not collapsed */}
-                  {!railCollapsed && (isDomainActive || (isCompact && expandedDomain === domain.id)) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '28px', marginTop: '2px', paddingLeft: '8px', borderLeft: `1.5px solid ${colors.slate[200]}` }}>
-                      {domain.items.map((sub) => {
-                        const isSubActive = activeRoute === sub.route && !selectedDetailItem;
-                        return (
-                          <button
-                            key={sub.route}
-                            type="button"
-                            onClick={() => goTo(sub.route)}
-                            aria-current={isSubActive ? 'page' : undefined}
-                            style={{
-                              textAlign: 'left',
-                              padding: '5px 8px',
-                              borderRadius: radius.sm,
-                              border: 'none',
-                              backgroundColor: isSubActive ? colors.primary[100] : 'transparent',
-                              color: isSubActive ? colors.primary[900] : colors.slate[600],
-                              fontSize: '11px',
-                              fontWeight: isSubActive ? 700 : 400,
-                              cursor: 'pointer',
-                              marginBottom: '2px',
-                            }}
-                          >
-                            {sub.label}
-                            {(sub as NavItem).sample && (
-                              <span
-                                title="Sample data, not connected yet"
-                                style={{ marginLeft: '6px', fontSize: '9px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: colors.slate[500], border: `1px solid ${colors.slate[300]}`, borderRadius: radius.sm, padding: '0 3px' }}
-                              >
-                                sample
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Sidebar Collapse Toggle (desktop rail only) */}
-          {!isCompact && (
-          <div style={{ padding: '8px', borderTop: `1px solid ${colors.slate[200]}` }}>
-            <button
-              type="button"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              style={{
-                width: '100%',
-                padding: '6px',
-                border: 'none',
-                borderRadius: radius.sm,
-                backgroundColor: colors.slate[100],
-                color: colors.slate[600],
-                fontSize: '11px',
-                cursor: 'pointer',
-                fontWeight: 600,
+            <SiteSwitcher
+              sites={switcherSites}
+              currentSiteId={activeSiteContext.siteId}
+              onSelect={(siteId) => {
+                const next = (session ? liveSites : DEMO_SITES).find((s) => s.siteId === siteId);
+                if (next) setActiveSiteContext(next);
               }}
-            >
-              {isSidebarCollapsed ? '→' : '← Collapse Rail'}
-            </button>
-          </div>
-          )}
-        </aside>
+            />
+            {/* Demo-only simulations: emergency drill and sample notifications. */}
+            {!session && (
+              <>
+                <button
+                  type="button"
+                  title={isEmergencyActive ? 'End emergency drill' : 'Start emergency drill'}
+                  aria-label={isEmergencyActive ? 'End emergency drill' : 'Start emergency drill'}
+                  onClick={() => {
+                    setIsEmergencyActive(!isEmergencyActive);
+                    if (!isEmergencyActive) setIsEmergencyModalOpen(true);
+                  }}
+                  style={{
+                    display: 'grid',
+                    placeItems: 'center',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: radius.lg,
+                    cursor: 'pointer',
+                    border: `1px solid ${isEmergencyActive ? colors.status.danger.solid : colors.slate[200]}`,
+                    backgroundColor: isEmergencyActive ? colors.status.danger.solid : '#ffffff',
+                  }}
+                >
+                  <AlertOctagon size={16} color={isEmergencyActive ? '#ffffff' : colors.status.danger.solid} />
+                </button>
+                <NotificationCenter notifications={DEMO_NOTIFICATIONS} onNavigate={(url) => goTo(url)} />
+              </>
+            )}
+          </>
+        }
+      >
+        {!session && (
+          <SampleDataNotice text="Demo environment: every screen shows sample data. Sign in to your organization's server to work with real records." />
         )}
-
-        {/* MAIN CONTENT AREA (min-width 0 so wide tables scroll inside their own containers) */}
-        <main
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            padding: isCompact ? '14px 16px' : '20px 24px',
-            maxWidth: '100%',
-          }}
-        >
-          {/* Breadcrumbs Trail */}
-          <nav aria-label="Breadcrumb" style={{ marginBottom: '12px' }}>
-            <ol style={{ display: 'flex', alignItems: 'center', listStyle: 'none', padding: 0, margin: 0, gap: '6px', fontSize: typography.fontSize.xs.size, color: colors.slate[500] }}>
-              <li><span>Facility</span></li>
-              <li>/</li>
-              <li><span>{breadcrumbs[0]}</span></li>
-              <li>/</li>
-              <li style={{ color: colors.slate[900], fontWeight: 600 }}>{breadcrumbs[1]}</li>
-            </ol>
-          </nav>
-
-          {/* Dynamic View Component */}
-          {!session && (
-            <SampleDataNotice text="Demo mode: no API server is connected, so every screen shows sample data and the role switcher is for preview only." />
-          )}
-          {renderMainContent()}
-        </main>
-      </div>
+        {renderMainContent()}
+      </AppShell>
 
       <ToastHost />
 
@@ -1728,7 +1395,7 @@ export const App: React.FC<AppProps> = ({
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
-        commands={[
+        commands={session ? navCommands : [
           {
             id: 'cmd-create-visitor',
             category: 'ACTIONS',
@@ -1969,6 +1636,7 @@ export const App: React.FC<AppProps> = ({
               setIsEmergencyModalOpen(true);
             },
           },
+          ...navCommands,
         ]}
         onNavigate={(path) => {
           setSelectedDetailItem(null);
@@ -1993,7 +1661,7 @@ export const App: React.FC<AppProps> = ({
         isSirenActive={isSirenActive}
         onToggleSiren={() => setIsSirenActive(!isSirenActive)}
       />
-    </div>
+    </>
   );
 };
 

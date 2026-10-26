@@ -106,9 +106,9 @@ export function PagedTable<T>({
 }
 
 export const Section: React.FC<{ title: string; actions?: React.ReactNode; children: React.ReactNode; note?: string }> = ({ title, actions, children, note }) => (
-  <section style={{ ...card, padding: '16px', marginBottom: '12px' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-      <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: colors.slate[900] }}>{title}</h2>
+  <section style={{ ...card, padding: '18px 20px', marginBottom: '16px' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+      <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: colors.slate[900] }}>{title}</h2>
       {actions && <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>{actions}</div>}
     </div>
     {note && <p style={{ margin: '0 0 10px', fontSize: '12px', color: colors.slate[500] }}>{note}</p>}
@@ -120,8 +120,8 @@ export const KeyValues: React.FC<{ items: Array<[string, React.ReactNode]> }> = 
   <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px 16px', margin: 0 }}>
     {items.map(([k, v]) => (
       <div key={k}>
-        <dt style={{ fontSize: '11px', fontWeight: 600, color: colors.slate[500], textTransform: 'uppercase', letterSpacing: '0.04em' }}>{k}</dt>
-        <dd style={{ margin: '2px 0 0', fontSize: '13px', color: colors.slate[900], wordBreak: 'break-word' }}>{v ?? '—'}</dd>
+        <dt style={{ fontSize: '12px', fontWeight: 500, color: colors.slate[500] }}>{k}</dt>
+        <dd style={{ margin: '3px 0 0', fontSize: '14px', color: colors.slate[900], wordBreak: 'break-word' }}>{v ?? '—'}</dd>
       </div>
     ))}
   </dl>
