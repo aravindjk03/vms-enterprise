@@ -11,7 +11,7 @@ test('Part 7: Customer Management View & SSR Rendering Verification', async (t) 
   await t.test('1. renders CustomerManagementView Executive Dashboard with KPIs and Scope 3 Footprint', () => {
     const html = renderToString(React.createElement(CustomerManagementView, { initialSubView: 'DASHBOARD' }));
     assert.ok(html.includes('Customer Management &amp; Delegations') || html.includes('Customer Management & Delegations'));
-    assert.ok(html.includes('Part 7 Independent Domain'));
+    assert.ok(!html.includes('Part 7'), 'internal build references are not shown to users');
     assert.ok(html.includes('Active OEM Accounts'));
     assert.ok(html.includes('Planned Visits'));
     assert.ok(html.includes('Currently Inside'));
@@ -98,7 +98,7 @@ test('Part 7: Customer Management View & SSR Rendering Verification', async (t) 
   await t.test('10. App component routes /customers to CustomerManagementView', () => {
     const html = renderToString(React.createElement(App, { initialRoute: '/customers' }));
     assert.ok(html.includes('Customer Management &amp; Delegations') || html.includes('Customer Management & Delegations'));
-    assert.ok(html.includes('Part 7 Independent Domain'));
+    assert.ok(!html.includes('Part 7'), 'internal build references are not shown to users');
   });
 
   await t.test('11. App component routes /customers/audits and subroutes to CustomerManagementView', () => {

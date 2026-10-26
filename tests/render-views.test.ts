@@ -83,17 +83,17 @@ test('Browser & SSR Rendering Verification for All Foundation Views', async (t) 
     );
     assert.ok(visitorHtml.includes('Aravind Swaminathan'), 'Must render visitor name');
     assert.ok(visitorHtml.includes('Siemens Industrial Automation'), 'Must render visitor company');
-    assert.ok(visitorHtml.includes('DEFAULT'), 'Must render state switchers');
-    assert.ok(visitorHtml.includes('LOADING'), 'Must render loading switcher');
-    assert.ok(visitorHtml.includes('EMPTY'), 'Must render empty switcher');
-    assert.ok(visitorHtml.includes('NO_PERMISSION'), 'Must render no-permission switcher');
-    assert.ok(visitorHtml.includes('ERROR'), 'Must render error switcher');
+    // The developer page-state switcher is not shipped to users.
+    for (const devState of ['NO_PERMISSION', 'LOADING', 'EMPTY']) {
+      assert.ok(!visitorHtml.includes(`>${devState}<`), `Must not render the ${devState} state switcher`);
+    }
   });
 
   await t.test('renders Global Application Shell with TopBar and LeftNav', () => {
     const appHtml = renderToString(React.createElement(App));
     assert.ok(appHtml.includes('VMS Enterprise'), 'Must render top brand');
-    assert.ok(appHtml.includes('MRF Tyres &amp; Polymers') || appHtml.includes('MRF Tyres & Polymers'), 'Must render organization switcher');
+    assert.ok(appHtml.includes('Northwind Tyres &amp; Polymers') || appHtml.includes('Northwind Tyres & Polymers'), 'Must render organization switcher (fictional sample tenant)');
+    assert.ok(!appHtml.includes('MRF'), 'Sample data must not use a real company as the tenant');
     assert.ok(appHtml.includes('Executive Dashboard'), 'Must render left nav dashboard item');
     assert.ok(appHtml.includes('Visitor'), 'Must render left nav visitor domain');
     assert.ok(appHtml.includes('Contractor'), 'Must render left nav contractor domain');
