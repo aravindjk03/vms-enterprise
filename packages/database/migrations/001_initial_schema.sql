@@ -337,8 +337,11 @@ CREATE TABLE IF NOT EXISTS persons (
 );
 
 -- Resolve Access Model FK references to Person
+ALTER TABLE access_credentials DROP CONSTRAINT IF EXISTS fk_access_credentials_person;
 ALTER TABLE access_credentials ADD CONSTRAINT fk_access_credentials_person FOREIGN KEY (person_id) REFERENCES persons(person_id);
+ALTER TABLE access_grants DROP CONSTRAINT IF EXISTS fk_access_grants_person;
 ALTER TABLE access_grants ADD CONSTRAINT fk_access_grants_person FOREIGN KEY (person_id) REFERENCES persons(person_id);
+ALTER TABLE access_events DROP CONSTRAINT IF EXISTS fk_access_events_person;
 ALTER TABLE access_events ADD CONSTRAINT fk_access_events_person FOREIGN KEY (person_id) REFERENCES persons(person_id);
 
 CREATE TABLE IF NOT EXISTS person_contacts (
@@ -1437,92 +1440,8 @@ CREATE TABLE IF NOT EXISTS identity_verification_results (
 
 -- ============================================================================
 -- 14. WORKFLOW MODEL (REUSABLE & VERSIONED)
+-- Workflow tables are defined in migration 003 (Part 5 workflow engine).
 -- ============================================================================
-
-CREATE TABLE IF NOT EXISTS workflow_definitions (
-    definition_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    code VARCHAR(64) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    target_domain VARCHAR(32) NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_wfl_def_code UNIQUE (tenant_id, code)
-);
-
-CREATE TABLE IF NOT EXISTS workflow_versions (
-    version_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    definition_id UUID NOT NULL REFERENCES workflow_definitions(definition_id) ON DELETE CASCADE,
-    version_number INTEGER NOT NULL,
-    effective_from TIMESTAMPTZ NOT NULL,
-    effective_to TIMESTAMPTZ,
-    is_current BOOLEAN NOT NULL DEFAULT FALSE,
-    schema_definition JSONB NOT NULL DEFAULT '{}'::JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_wfl_version UNIQUE (definition_id, version_number)
-);
-
-CREATE TABLE IF NOT EXISTS workflow_stages (
-    stage_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    version_id UUID NOT NULL REFERENCES workflow_versions(version_id) ON DELETE CASCADE,
-    stage_code VARCHAR(32) NOT NULL,
-    stage_name VARCHAR(64) NOT NULL,
-    order_index INTEGER NOT NULL,
-    sla_minutes INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS workflow_transitions (
-    transition_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    version_id UUID NOT NULL REFERENCES workflow_versions(version_id) ON DELETE CASCADE,
-    from_stage_id UUID NOT NULL REFERENCES workflow_stages(stage_id) ON DELETE CASCADE,
-    to_stage_id UUID NOT NULL REFERENCES workflow_stages(stage_id) ON DELETE CASCADE,
-    trigger_action VARCHAR(64) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS workflow_conditions (
-    condition_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    transition_id UUID NOT NULL REFERENCES workflow_transitions(transition_id) ON DELETE CASCADE,
-    condition_expression TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS workflow_instances (
-    instance_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    definition_id UUID NOT NULL REFERENCES workflow_definitions(definition_id) ON DELETE RESTRICT,
-    version_id UUID NOT NULL REFERENCES workflow_versions(version_id) ON DELETE RESTRICT,
-    source_domain VARCHAR(32) NOT NULL,
-    source_transaction_id VARCHAR(64) NOT NULL,
-    current_stage_id UUID REFERENCES workflow_stages(stage_id) ON DELETE SET NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'IN_PROGRESS',
-    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS workflow_tasks (
-    task_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    instance_id UUID NOT NULL REFERENCES workflow_instances(instance_id) ON DELETE CASCADE,
-    stage_id UUID NOT NULL REFERENCES workflow_stages(stage_id) ON DELETE CASCADE,
-    assigned_role_id UUID REFERENCES roles(role_id) ON DELETE SET NULL,
-    assigned_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
-    due_at TIMESTAMPTZ,
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
-    completed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS workflow_actions (
-    action_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    task_id UUID NOT NULL REFERENCES workflow_tasks(task_id) ON DELETE CASCADE,
-    actor_id VARCHAR(64) NOT NULL,
-    action_name VARCHAR(64) NOT NULL,
-    comment TEXT,
-    action_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
 
 -- ============================================================================
 -- 15. APPROVAL MODEL (REUSABLE INFRASTRUCTURE)
@@ -1577,26 +1496,6 @@ CREATE TABLE IF NOT EXISTS approval_stage_instances (
     instance_id UUID NOT NULL REFERENCES approval_instances(instance_id) ON DELETE CASCADE,
     stage_id UUID NOT NULL REFERENCES approval_stages(stage_id) ON DELETE CASCADE,
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS approval_actions (
-    action_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    stage_inst_id UUID NOT NULL REFERENCES approval_stage_instances(stage_inst_id) ON DELETE CASCADE,
-    actor_id VARCHAR(64) NOT NULL,
-    decision VARCHAR(32) NOT NULL, -- APPROVED, REJECTED, RETURNED_FOR_EDIT
-    remarks TEXT,
-    decision_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS approval_delegations (
-    delegation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    delegator_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    delegate_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    valid_from TIMESTAMPTZ NOT NULL,
-    valid_to TIMESTAMPTZ NOT NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -1691,7 +1590,7 @@ CREATE TABLE IF NOT EXISTS training_types (
 
 CREATE TABLE IF NOT EXISTS permit_types (
     type_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    tenant_id UUID REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     code VARCHAR(32) NOT NULL,
     name VARCHAR(64) NOT NULL,
     is_hazardous BOOLEAN NOT NULL DEFAULT FALSE,
@@ -2153,9 +2052,9 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_plate_lookup ON vehicles (tenant_id, reg
 
 -- Operational Search & Filtering
 CREATE INDEX IF NOT EXISTS idx_visitor_tx_site_status ON visitor_transactions (tenant_id, site_id, status, scheduled_start);
-CREATE INDEX IF NOT EXISTS idx_customer_visit_account ON customer_visit_transactions (tenant_id, account_id, status);
-CREATE INDEX IF NOT EXISTS idx_contractor_wo_company ON contractor_work_orders (tenant_id, contracting_company_id, status);
-CREATE INDEX IF NOT EXISTS idx_contractor_attendance_active ON contractor_attendance (tenant_id, site_id, clock_out_time) WHERE clock_out_time IS NULL;
+CREATE INDEX IF NOT EXISTS idx_customer_visit_account ON customer_visit_transactions (tenant_id, customer_account_id, status);
+CREATE INDEX IF NOT EXISTS idx_contractor_wo_company ON contractor_work_orders (tenant_id, company_id, status);
+CREATE INDEX IF NOT EXISTS idx_contractor_attendance_active ON contractor_attendance (tenant_id, site_id, exit_time) WHERE exit_time IS NULL;
 CREATE INDEX IF NOT EXISTS idx_material_tx_site_stage ON material_transactions (tenant_id, site_id, stage, created_at);
 
 -- ESG Activity & GHG Provenance Traversal
@@ -2164,14 +2063,13 @@ CREATE INDEX IF NOT EXISTS idx_transport_activities_source ON transport_activiti
 CREATE INDEX IF NOT EXISTS idx_ef_versions_lookup ON emission_factor_versions (factor_id, version_tag, geography, reporting_year);
 
 -- Approval Instances & Delegations
-CREATE INDEX IF NOT EXISTS idx_approval_instances_source ON approval_instances (tenant_id, source_domain, source_entity_id);
-CREATE INDEX IF NOT EXISTS idx_approval_actions_instance ON approval_actions (tenant_id, instance_id, step_order);
+CREATE INDEX IF NOT EXISTS idx_approval_instances_source ON approval_instances (tenant_id, source_domain, source_transaction_id);
 
 -- Gate Event Telemetry Stream
 CREATE INDEX IF NOT EXISTS idx_gate_events_stream ON gate_events (tenant_id, gate_id, event_timestamp DESC);
 
 -- Document Links & Polymorphic Relations
-CREATE INDEX IF NOT EXISTS idx_document_links_target ON document_links (tenant_id, target_entity_type, target_entity_id);
+CREATE INDEX IF NOT EXISTS idx_document_links_target ON document_links (tenant_id, entity_type, entity_id);
 
 -- ============================================================================
 -- 22. COMPATIBILITY VIEWS & ALIASES (Part 1 & 2 Ecosystem Support)
@@ -2288,227 +2186,3 @@ DO $$ BEGIN
             USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::UUID);
     END IF;
 END $$;
-
--- ============================================================================
--- 22. ENTERPRISE MASTER DATA & POLICY FRAMEWORK (PART 5)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS master_data_categories (
-    category_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    code VARCHAR(64) NOT NULL UNIQUE,
-    name VARCHAR(128) NOT NULL,
-    domain VARCHAR(32) NOT NULL,
-    description TEXT,
-    is_sensitive BOOLEAN NOT NULL DEFAULT FALSE,
-    requires_approval_for_activation BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS master_data_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    organization_id UUID REFERENCES organizations(organization_id) ON DELETE SET NULL,
-    site_id UUID REFERENCES sites(site_id) ON DELETE SET NULL,
-    category VARCHAR(64) NOT NULL,
-    code VARCHAR(64) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    parent_record_id UUID REFERENCES master_data_records(id) ON DELETE SET NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    effective_from TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    effective_until TIMESTAMPTZ,
-    metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
-    version INTEGER NOT NULL DEFAULT 1,
-    created_by VARCHAR(64) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by VARCHAR(64) NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    is_sensitive BOOLEAN NOT NULL DEFAULT FALSE,
-    pending_approval BOOLEAN NOT NULL DEFAULT FALSE,
-    CONSTRAINT uq_master_tenant_cat_code UNIQUE (tenant_id, category, code)
-);
-
-CREATE TABLE IF NOT EXISTS master_data_versions (
-    version_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    record_id UUID NOT NULL REFERENCES master_data_records(id) ON DELETE CASCADE,
-    version_number INTEGER NOT NULL,
-    snapshot JSONB NOT NULL,
-    changed_by VARCHAR(64) NOT NULL,
-    changed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    reason TEXT,
-    CONSTRAINT uq_master_version UNIQUE (record_id, version_number)
-);
-
-CREATE TABLE IF NOT EXISTS policy_definitions (
-    policy_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    site_id UUID REFERENCES sites(site_id) ON DELETE CASCADE,
-    domain VARCHAR(32) NOT NULL,
-    code VARCHAR(64) NOT NULL,
-    name VARCHAR(128) NOT NULL,
-    description TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    version INTEGER NOT NULL DEFAULT 1,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_policy_def_tenant_code UNIQUE (tenant_id, code)
-);
-
-CREATE TABLE IF NOT EXISTS policy_versions (
-    version_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    policy_id UUID NOT NULL REFERENCES policy_definitions(policy_id) ON DELETE CASCADE,
-    version_number INTEGER NOT NULL,
-    rules JSONB NOT NULL DEFAULT '[]'::JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_policy_ver UNIQUE (policy_id, version_number)
-);
-
-CREATE TABLE IF NOT EXISTS policy_rules (
-    rule_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    policy_id UUID NOT NULL REFERENCES policy_definitions(policy_id) ON DELETE CASCADE,
-    rule_code VARCHAR(64) NOT NULL,
-    name VARCHAR(128) NOT NULL,
-    priority INTEGER NOT NULL DEFAULT 100,
-    conditions JSONB NOT NULL DEFAULT '[]'::JSONB,
-    action VARCHAR(32) NOT NULL,
-    action_payload JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS policy_evaluation_records (
-    evaluation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    policy_id UUID REFERENCES policy_definitions(policy_id) ON DELETE SET NULL,
-    domain VARCHAR(32) NOT NULL,
-    transaction_id VARCHAR(64) NOT NULL,
-    allowed BOOLEAN NOT NULL,
-    action_result VARCHAR(32) NOT NULL,
-    explanation TEXT,
-    evaluated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS workflow_outbox_events (
-    outbox_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    event_type VARCHAR(128) NOT NULL,
-    payload JSONB NOT NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    dispatched_at TIMESTAMPTZ,
-    error_details TEXT
-);
-
--- ============================================================================
--- 23. WORKFLOW ENGINE, APPROVAL MATRIX & DELEGATION (PART 5)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS workflow_definitions (
-    definition_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    site_id UUID REFERENCES sites(site_id) ON DELETE CASCADE,
-    domain VARCHAR(32) NOT NULL,
-    code VARCHAR(64) NOT NULL,
-    name VARCHAR(128) NOT NULL,
-    description TEXT,
-    is_current BOOLEAN NOT NULL DEFAULT TRUE,
-    owner_id VARCHAR(64) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_workflow_def_tenant_code UNIQUE (tenant_id, code)
-);
-
-CREATE TABLE IF NOT EXISTS workflow_versions (
-    version_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    definition_id UUID NOT NULL REFERENCES workflow_definitions(definition_id) ON DELETE CASCADE,
-    version_number INTEGER NOT NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
-    effective_from TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    effective_to TIMESTAMPTZ,
-    stages JSONB NOT NULL DEFAULT '[]'::JSONB,
-    transitions JSONB NOT NULL DEFAULT '[]'::JSONB,
-    published_by VARCHAR(64),
-    published_at TIMESTAMPTZ,
-    immutable BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_workflow_ver UNIQUE (definition_id, version_number)
-);
-
-CREATE TABLE IF NOT EXISTS workflow_instances (
-    instance_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    definition_id UUID NOT NULL REFERENCES workflow_definitions(definition_id) ON DELETE CASCADE,
-    version_id UUID NOT NULL REFERENCES workflow_versions(version_id) ON DELETE RESTRICT,
-    source_domain VARCHAR(32) NOT NULL,
-    source_transaction_id VARCHAR(64) NOT NULL,
-    current_stage_id VARCHAR(64) NOT NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'IN_PROGRESS',
-    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMPTZ,
-    history JSONB NOT NULL DEFAULT '[]'::JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS workflow_tasks (
-    task_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    instance_id UUID NOT NULL REFERENCES workflow_instances(instance_id) ON DELETE CASCADE,
-    stage_id VARCHAR(64) NOT NULL,
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    site_id UUID REFERENCES sites(site_id) ON DELETE SET NULL,
-    source_domain VARCHAR(32) NOT NULL,
-    source_transaction_id VARCHAR(64) NOT NULL,
-    assigned_to_user_id VARCHAR(64),
-    assigned_to_role VARCHAR(64),
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
-    sla_due_at TIMESTAMPTZ,
-    sla_warning_at TIMESTAMPTZ,
-    sla_breached BOOLEAN NOT NULL DEFAULT FALSE,
-    sla_escalated BOOLEAN NOT NULL DEFAULT FALSE,
-    escalation_count INTEGER NOT NULL DEFAULT 0,
-    submitted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    resolved_at TIMESTAMPTZ,
-    metadata JSONB NOT NULL DEFAULT '{}'::JSONB
-);
-
-CREATE TABLE IF NOT EXISTS workflow_actions (
-    action_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    instance_id UUID NOT NULL REFERENCES workflow_instances(instance_id) ON DELETE CASCADE,
-    stage_id VARCHAR(64) NOT NULL,
-    actor_id VARCHAR(64) NOT NULL,
-    action VARCHAR(64) NOT NULL,
-    remarks TEXT,
-    action_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS approval_delegations (
-    delegation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    delegator_user_id VARCHAR(64) NOT NULL,
-    delegate_user_id VARCHAR(64) NOT NULL,
-    domain_scope VARCHAR(32),
-    site_scope_id UUID REFERENCES sites(site_id) ON DELETE SET NULL,
-    stage_scope_id VARCHAR(64),
-    valid_from TIMESTAMPTZ NOT NULL,
-    valid_to TIMESTAMPTZ NOT NULL,
-    reason TEXT,
-    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS approval_actions (
-    action_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    task_id UUID NOT NULL REFERENCES workflow_tasks(task_id) ON DELETE CASCADE,
-    instance_id UUID NOT NULL REFERENCES workflow_instances(instance_id) ON DELETE CASCADE,
-    stage_id VARCHAR(64) NOT NULL,
-    actor_user_id VARCHAR(64) NOT NULL,
-    actor_role VARCHAR(64) NOT NULL,
-    decision VARCHAR(32) NOT NULL,
-    remarks TEXT,
-    delegation_id UUID REFERENCES approval_delegations(delegation_id) ON DELETE SET NULL,
-    decision_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    changes_required_details TEXT
-);

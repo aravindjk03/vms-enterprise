@@ -39,8 +39,8 @@ export class MigrationRunner {
    */
   public async runMigrations(): Promise<{ schema: ParsedSchema; seedCount: number }> {
     // 1. Locate and read SQL migration files (prioritize canonical migrations/ directory)
-    const schemaSql = this.loadSqlFile(['../../migrations/001_initial_schema.sql', '../schema.sql']);
-    const seedsSql = this.loadSqlFile(['../../migrations/002_seed_data.sql', '../seeds.sql']);
+    const schemaSql = this.loadSqlFile(['../../migrations/001_initial_schema.sql']);
+    const seedsSql = this.loadSqlFile(['../../migrations/002_seed_data.sql']);
 
     // 2. Validate DDL against architectural requirements
     const parsedSchema = this.schemaValidator.parseSql(schemaSql);
