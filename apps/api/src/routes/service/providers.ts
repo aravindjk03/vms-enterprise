@@ -5,7 +5,7 @@ import { authorize } from '../../context.js';
 import { isUuid } from '../../db.js';
 import { HttpError, notFound } from '../../errors.js';
 import { idempotent, sendResult } from '../../idempotency.js';
-import { audit, CategoryCode, DateOnly, likePattern, Paging, siteScope, Uuid } from './common.js';
+import { audit, CategoryCode, DateOnly, likePattern, Paging, requireSite, siteScope, Uuid } from './common.js';
 
 const ProviderCreate = z
   .object({
@@ -190,6 +190,7 @@ export async function registerProviderRoutes(app: FastifyInstance, ctx: RouteCon
         if (existing.rowCount) throw new HttpError(409, 'ALREADY_PROVIDER', 'This organization is already a service provider.');
 
         for (const siteId of body.siteIds) {
+          requireSite(user, siteId);
           const site = await tx.query('SELECT 1 FROM sites WHERE site_id = $1', [siteId]);
           if (!site.rowCount) throw new HttpError(400, 'VALIDATION_ERROR', 'Unknown site in siteIds.');
         }
@@ -247,8 +248,47 @@ export async function registerProviderRoutes(app: FastifyInstance, ctx: RouteCon
       const { id } = request.params as { id: string };
       if (!isUuid(id)) throw notFound('Provider');
       const body = ProviderUpdate.parse(request.body);
-      const before = await tx.query('SELECT status, internal_owner_user_id, agreement_reference, effective_to FROM service_providers WHERE service_provider_id = $1 FOR UPDATE', [id]);
-      if (!before.rows[0]) throw notFound('Provider');
+      const before = await tx.query<{
+        status: string;
+        internal_owner_user_id: string | null;
+        agreement_reference: string | null;
+        effective_to: string | null;
+        notes: string | null;
+      }>(
+        `SELECT status, internal_owner_user_id, agreement_reference, effective_to::text AS effective_to, notes
+           FROM service_providers WHERE service_provider_id = $1 FOR UPDATE`,
+        [id]
+      );
+      const prior = before.rows[0];
+      if (!prior) throw notFound('Provider');
+      const currentSites = (await tx.query<{ site_id: string }>('SELECT site_id FROM service_provider_sites WHERE service_provider_id = $1', [id])).rows.map(r => r.site_id);
+      const currentCategories = (
+        await tx.query<{ category_code: string }>('SELECT category_code FROM service_provider_categories WHERE service_provider_id = $1', [id])
+      ).rows.map(r => r.category_code);
+
+      // Site-scoped managers change the provider's authorizations at their own sites only. Attributes
+      // that apply at every site need a tenant-wide administrator once the provider also serves other sites.
+      const scope = siteScope(user);
+      if (scope !== null && currentSites.some(s => !scope.includes(s))) {
+        const changed = <T,>(next: T | undefined, current: T) => next !== undefined && next !== current;
+        const categoriesChanged =
+          body.categories !== undefined &&
+          (new Set(body.categories).size !== currentCategories.length || body.categories.some(c => !currentCategories.includes(c)));
+        if (
+          changed(body.status, prior.status) ||
+          categoriesChanged ||
+          changed(body.internalOwnerUserId, prior.internal_owner_user_id) ||
+          changed(body.agreementReference, prior.agreement_reference) ||
+          changed(body.effectiveTo, prior.effective_to) ||
+          changed(body.notes, prior.notes)
+        ) {
+          throw new HttpError(403, 'FORBIDDEN', 'This provider also serves sites you do not manage. Ask an organization administrator to change it.');
+        }
+      }
+      if (body.internalOwnerUserId) {
+        const owner = await tx.query('SELECT 1 FROM users WHERE user_id = $1 AND is_active', [body.internalOwnerUserId]);
+        if (!owner.rowCount) throw new HttpError(400, 'VALIDATION_ERROR', 'Internal owner not found.');
+      }
 
       await tx.query(
         `UPDATE service_providers SET
@@ -283,8 +323,16 @@ export async function registerProviderRoutes(app: FastifyInstance, ctx: RouteCon
         }
       }
       if (body.siteIds) {
-        await tx.query('DELETE FROM service_provider_sites WHERE service_provider_id = $1 AND NOT (site_id = ANY($2))', [id, body.siteIds]);
-        for (const siteId of new Set(body.siteIds)) {
+        const requested = new Set(body.siteIds);
+        // Only sites inside the user's scope can be removed; authorizations elsewhere are kept.
+        const removable = scope === null ? currentSites : currentSites.filter(s => scope.includes(s));
+        const toRemove = removable.filter(s => !requested.has(s));
+        if (toRemove.length) {
+          await tx.query('DELETE FROM service_provider_sites WHERE service_provider_id = $1 AND site_id = ANY($2)', [id, toRemove]);
+        }
+        for (const siteId of requested) {
+          if (currentSites.includes(siteId)) continue;
+          requireSite(user, siteId);
           const site = await tx.query('SELECT 1 FROM sites WHERE site_id = $1', [siteId]);
           if (!site.rowCount) throw new HttpError(400, 'VALIDATION_ERROR', 'Unknown site in siteIds.');
           await tx.query('INSERT INTO service_provider_sites (tenant_id, service_provider_id, site_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [
@@ -295,7 +343,7 @@ export async function registerProviderRoutes(app: FastifyInstance, ctx: RouteCon
         }
       }
       await audit(tx, user, request.id, 'SERVICE_PROVIDER_UPDATED', 'SERVICE_PROVIDER', id, {
-        before: before.rows[0],
+        before: { ...prior, siteIds: currentSites, categories: currentCategories },
         after: { ...body, reason: undefined },
         reason: body.reason,
       });

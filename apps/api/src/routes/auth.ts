@@ -69,7 +69,8 @@ export function describeUser(user: AuthenticatedUser) {
 
 export async function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext): Promise<void> {
   const { config, db } = ctx;
-  const secureCookies = config.env === 'production';
+  const secureCookies = config.secureCookies ?? config.env === 'production';
+  const reuseGraceSeconds = config.refreshReuseGraceSeconds ?? 10;
 
   async function startSession(tx: Tx, user: AuthenticatedUser, request: FastifyRequest, reply: FastifyReply) {
     const refresh = newRefreshToken();
@@ -91,8 +92,9 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext
 
   app.post('/api/v1/auth/login', async (request, reply) => {
     const body = LoginSchema.parse(request.body);
-    const throttleKeys = [request.ip, `${body.tenantCode}:${body.username.toLowerCase()}`];
-    if (throttleKeys.some(key => !ctx.rateLimiter.checkRateLimit(key, 'LOGIN').allowed)) {
+    const ipAllowed = ctx.rateLimiter.checkRateLimit(request.ip, 'LOGIN_IP').allowed;
+    const accountAllowed = ctx.rateLimiter.checkRateLimit(`${body.tenantCode}:${body.username.toLowerCase()}`, 'LOGIN').allowed;
+    if (!ipAllowed || !accountAllowed) {
       throw new HttpError(429, 'RATE_LIMITED', 'Too many sign-in attempts. Please wait a minute and try again.');
     }
 
@@ -168,6 +170,22 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext
 
     return withTenant(db, session.tenant_id, async tx => {
       if (session.revoked_at) {
+        // Another tab refreshed with the same cookie moments ago: the token was rotated (its successor
+        // was created in the same transaction), not stolen. The browser already holds the new cookie,
+        // so the client retries; the cookie must not be cleared here or that new cookie would be lost.
+        const rotatedJustNow = await tx.query(
+          `SELECT 1 FROM user_sessions prior JOIN user_sessions successor
+               ON successor.user_id = prior.user_id AND successor.created_at = prior.revoked_at
+              AND successor.session_id <> prior.session_id
+            WHERE prior.session_id = $1 AND prior.revoked_at > now() - make_interval(secs => $2)
+            LIMIT 1`,
+          [session.session_id, reuseGraceSeconds]
+        );
+        if (rotatedJustNow.rowCount) {
+          return reply.code(409).send({
+            error: { code: 'REFRESH_RACE', message: 'The session was refreshed in another tab. Retry.', requestId: request.id },
+          });
+        }
         // A rotated-out refresh token was replayed: treat as theft and end every session of the user.
         await tx.query('UPDATE user_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [session.user_id]);
         await writeAudit(tx, {

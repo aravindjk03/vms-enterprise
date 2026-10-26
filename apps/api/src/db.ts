@@ -1,6 +1,10 @@
 import pg from 'pg';
 import type { ApiConfig } from './config.js';
 
+// DATE columns are calendar dates, not instants. Returned as 'YYYY-MM-DD' text so they never shift a
+// day when serialized through a JavaScript Date in another time zone.
+pg.types.setTypeParser(pg.types.builtins.DATE, (value: string) => value);
+
 export type Db = pg.Pool;
 export type Tx = pg.PoolClient;
 

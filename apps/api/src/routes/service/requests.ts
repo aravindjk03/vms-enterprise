@@ -57,6 +57,21 @@ async function loadRequest(tx: Tx, user: AuthenticatedUser, id: string, lock = f
   return r;
 }
 
+/** Locks a request that work orders (or a recurring schedule) are raised against: same site, approved. */
+export async function lockRequestForWork(tx: Tx, requestId: string, siteId: string): Promise<RequestRow> {
+  const { rows } = await tx.query<RequestRow>(
+    'SELECT request_id, reference_number, site_id, status, requested_by_user_id FROM service_requests WHERE request_id = $1 FOR UPDATE',
+    [requestId]
+  );
+  const req = rows[0];
+  if (!req) throw new HttpError(400, 'VALIDATION_ERROR', 'Service request not found.');
+  if (req.site_id !== siteId) throw new HttpError(400, 'VALIDATION_ERROR', 'The site must match the request site.');
+  if (!['APPROVED', 'WORK_ORDERED'].includes(req.status)) {
+    throw new HttpError(409, 'INVALID_STATE', `Request is ${req.status}; work can only be raised from approved requests.`);
+  }
+  return req;
+}
+
 export async function transitionRequest(tx: Tx, user: AuthenticatedUser, r: RequestRow, action: RequestAction, reason?: string | null): Promise<string> {
   const to = nextRequestStatus(r.status, action);
   await tx.query(
@@ -237,6 +252,16 @@ export async function registerRequestRoutes(app: FastifyInstance, ctx: RouteCont
       if (r.requested_by_user_id !== user.userId) authorize(user, 'SERVICE_MANAGE', { siteId: r.site_id });
       const { remarks } = Decision.parse(request.body ?? {});
       if (!remarks) throw new HttpError(400, 'VALIDATION_ERROR', 'A reason is required to cancel a request.');
+      if (r.status === 'WORK_ORDERED') {
+        // Possible only when every work order was cancelled or rejected; otherwise work is under way or done.
+        const live = await tx.query(
+          `SELECT count(*)::int AS n FROM service_work_orders WHERE request_id = $1 AND status NOT IN ('CANCELLED', 'REJECTED')`,
+          [r.request_id]
+        );
+        if (live.rows[0].n > 0) {
+          throw new HttpError(409, 'WORK_ORDERS_OPEN', 'This request has work orders that are open or completed; cancel those first or mark the request fulfilled.');
+        }
+      }
       const before = r.status;
       const to = await transitionRequest(tx, user, r, 'CANCEL', remarks);
       await audit(tx, user, request.id, 'SERVICE_REQUEST_CANCELLED', 'SERVICE_REQUEST', r.request_id, { before: { status: before }, after: { status: to }, reason: remarks });
@@ -253,6 +278,10 @@ export async function registerRequestRoutes(app: FastifyInstance, ctx: RouteCont
         [r.request_id]
       );
       if (open.rows[0].n > 0) throw new HttpError(409, 'WORK_ORDERS_OPEN', 'All work orders must be closed or cancelled before the request is fulfilled.');
+      const done = await tx.query(`SELECT count(*)::int AS n FROM service_work_orders WHERE request_id = $1 AND status = 'CLOSED'`, [r.request_id]);
+      if (done.rows[0].n === 0) {
+        throw new HttpError(409, 'NOTHING_COMPLETED', 'No work order for this request was completed. Cancel the request or raise a new work order.');
+      }
       const before = r.status;
       const to = await transitionRequest(tx, user, r, 'FULFIL');
       await audit(tx, user, request.id, 'SERVICE_REQUEST_FULFILLED', 'SERVICE_REQUEST', r.request_id, { before: { status: before }, after: { status: to } });

@@ -52,8 +52,7 @@ describe('Part 9: Service / Work Management (API + PostgreSQL)', { skip: !ADMIN_
     // Second tenant with its own service manager
     await owner.query(`
       INSERT INTO tenants (tenant_id, code, name) VALUES ('00000000-0000-0000-0000-0000000000b2', 'RIVAL-CO', 'Rival Co');
-      INSERT INTO organizations (organization_id, tenant_id, code, name) VALUES ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-0000000000b2', 'RIVAL', 'Rival');
-      INSERT INTO roles (tenant_id, code, name) VALUES ('00000000-0000-0000-0000-0000000000b2', 'SERVICE_MANAGER', 'Service Manager');`);
+      INSERT INTO organizations (organization_id, tenant_id, code, name) VALUES ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-0000000000b2', 'RIVAL', 'Rival');`);
     await addUser(owner, {
       tenantId: '00000000-0000-0000-0000-0000000000b2',
       orgId: '00000000-0000-0000-0000-0000000000b3',
@@ -289,8 +288,16 @@ describe('Part 9: Service / Work Management (API + PostgreSQL)', { skip: !ADMIN_
 
     assert.equal((await alpha.post(`/api/v1/service/work-orders/${woA}/completion/accept`, {})).statusCode, 403, 'submitter cannot accept');
     assert.equal((await beta.post(`/api/v1/service/work-orders/${woA}/completion/return`, {})).statusCode, 400);
-    assert.equal((await beta.post(`/api/v1/service/work-orders/${woA}/completion/return`, { remarks: 'Attach torque log' })).json().status, 'IN_PROGRESS');
-    await alpha.post(`/api/v1/service/work-orders/${woA}/completion`, { workSummary: 'Torque log attached' });
+    const replaceDuringReview = await alpha.post(`/api/v1/service/work-orders/${woA}/deliverables/${cert.id}/evidence`, { evidenceNote: 'Edited while under review' });
+    assert.equal(replaceDuringReview.statusCode, 409, 'evidence under review cannot be replaced');
+    assert.equal((await beta.post(`/api/v1/service/work-orders/${woA}/completion/return`, { remarks: 'Wrong certificate number' })).json().status, 'IN_PROGRESS');
+    // After a return the evidence can be corrected; the earlier evidence stays in the progress log.
+    const corrected = await alpha.post(`/api/v1/service/work-orders/${woA}/deliverables/${cert.id}/evidence`, { evidenceNote: 'Certificate CAL-7782 issued by provider' });
+    assert.equal(corrected.statusCode, 200);
+    const afterReturn = (await alpha.get(`/api/v1/service/work-orders/${woA}`)).json();
+    assert.equal(afterReturn.deliverables.find((d: { id: string }) => d.id === cert.id).evidenceNote, 'Certificate CAL-7782 issued by provider');
+    assert.ok(afterReturn.progress.some((e: { comment: string | null }) => e.comment?.includes('replaces: Certificate CAL-7781')));
+    await alpha.post(`/api/v1/service/work-orders/${woA}/completion`, { workSummary: 'Certificate corrected' });
     assert.equal((await beta.post(`/api/v1/service/work-orders/${woA}/completion/accept`, { remarks: 'Verified' })).json().status, 'COMPLETED');
 
     const departed = await guard.post(`/api/v1/service/work-orders/${woA}/progress`, { eventType: 'DEPARTED', technicianId: KUKA_TECH });
@@ -393,6 +400,20 @@ describe('Part 9: Service / Work Management (API + PostgreSQL)', { skip: !ADMIN_
     const wo = (await alpha.get(`/api/v1/service/work-orders/${woA}`)).json();
     assert.ok(wo.journeys.some((j: { activityCapture: string }) => j.activityCapture === 'SUPERSEDED'));
     assert.ok(wo.journeys.some((j: { activityCapture: string }) => j.activityCapture === 'CAPTURED'));
+
+    // Two corrections before the worker runs: the intermediate version never gets a GHG record,
+    // and every earlier record in the chain is superseded, so only the latest one stays active.
+    const v2 = corrected.json().transportActivityId;
+    const v3 = (await alpha.post(`/api/v1/service/journeys/${v2}/corrections`, { ...facts, distanceKm: 42, reason: 'Second re-read' })).json().transportActivityId;
+    const v4 = (await alpha.post(`/api/v1/service/journeys/${v3}/corrections`, { ...facts, distanceKm: 43, reason: 'Third re-read' })).json().transportActivityId;
+    await worker.runOnce();
+    const ledger = await env.owner.query<{ transport_activity_id: string; superseded_by: string | null }>(
+      'SELECT transport_activity_id, superseded_by FROM ghg_activities WHERE transport_activity_id = ANY($1)',
+      [[journeyId, v2, v3, v4]]
+    );
+    const active = ledger.rows.filter(r => r.superseded_by === null).map(r => r.transport_activity_id);
+    assert.deepEqual(active, [v4], 'only the latest version is active in the GHG ledger');
+    assert.equal(ledger.rows.some(r => r.transport_activity_id === v3), false, 'superseded-before-capture version has no record');
   });
 
   it('generates recurring occurrences idempotently and flags missed ones', async () => {
@@ -446,6 +467,80 @@ describe('Part 9: Service / Work Management (API + PostgreSQL)', { skip: !ADMIN_
     assert.ok(s.activityCapture.journeys >= 2);
     assert.ok(s.activityCapture.capturedInLedger >= 2);
     assert.equal('co2e' in s, false, 'no GHG totals in service analytics');
+  });
+
+  it('limits site-scoped managers to their sites when changing a provider', async () => {
+    // Kuka also serves Chennai, which sm.alpha does not manage.
+    await env.owner.query('INSERT INTO service_provider_sites (tenant_id, service_provider_id, site_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [T, KUKA, CHENNAI]);
+    const block = await alpha.patch(`/api/v1/service/providers/${KUKA}`, { status: 'BLOCKED', reason: 'Trying to block everywhere' });
+    assert.equal(block.statusCode, 403, 'status applies at every site');
+    const narrowed = await alpha.patch(`/api/v1/service/providers/${KUKA}`, { status: 'ACTIVE', siteIds: [DETROIT], reason: 'Same status, Detroit only' });
+    assert.equal(narrowed.statusCode, 200, 'unchanged fields and own-site authorizations are allowed');
+    const sites = await env.owner.query('SELECT site_id FROM service_provider_sites WHERE service_provider_id = $1', [KUKA]);
+    assert.ok(sites.rows.some(r => r.site_id === CHENNAI), 'authorizations at other sites are kept');
+    const addChennai = await alpha.patch(`/api/v1/service/providers/${KUKA}`, { siteIds: [DETROIT, CHENNAI, randomUUID()], reason: 'Adding a site I do not manage' });
+    assert.equal(addChennai.statusCode, 403);
+
+    await env.owner.query('DELETE FROM service_provider_sites WHERE service_provider_id = $1 AND site_id = $2', [KUKA, CHENNAI]);
+    const ghostOwner = await alpha.patch(`/api/v1/service/providers/${KUKA}`, { internalOwnerUserId: randomUUID(), reason: 'Owner that does not exist' });
+    assert.equal(ghostOwner.statusCode, 400);
+  });
+
+  it('keeps requests consistent with their work orders and schedules', async () => {
+    const raise = async (title: string) => {
+      const r = await host.post('/api/v1/service/requests', { siteId: DETROIT, serviceType: 'INSPECTION', serviceCategory: 'INSPECTION', title, description: 'Check', priority: 'STANDARD' });
+      assert.equal(r.statusCode, 201);
+      return r.json().id as string;
+    };
+    // All work orders rejected: the request can be cancelled, not marked fulfilled.
+    const rejectedReq = await raise('Inspect conveyor guard');
+    assert.equal((await alpha.post(`/api/v1/service/requests/${rejectedReq}/approve`, {})).json().status, 'APPROVED');
+    const wo = await alpha.post('/api/v1/service/work-orders', {
+      requestId: rejectedReq,
+      siteId: DETROIT,
+      providerId: KUKA,
+      title: 'Inspect conveyor guard',
+      scopeOfWork: 'Guard inspection',
+      serviceType: 'INSPECTION',
+      serviceCategory: 'INSPECTION',
+      scheduledStart: iso(200),
+      scheduledEnd: iso(201),
+      maintenanceLeadId: leadId,
+      deliverables: [],
+    });
+    assert.equal(wo.statusCode, 201);
+    assert.equal((await beta.post(`/api/v1/service/work-orders/${wo.json().id}/reject`, { remarks: 'Not needed' })).json().status, 'REJECTED');
+    const fulfil = await alpha.post(`/api/v1/service/requests/${rejectedReq}/fulfil`, {});
+    assert.equal(fulfil.json().error.code, 'NOTHING_COMPLETED');
+    assert.equal((await host.post(`/api/v1/service/requests/${rejectedReq}/cancel`, { remarks: 'Work was rejected' })).json().status, 'CANCELLED');
+
+    // Schedules: the linked request must exist and be approved, and generating work moves it on.
+    const schedule = (requestId?: string) =>
+      alpha.post('/api/v1/service/schedules', {
+        siteId: DETROIT,
+        providerId: KUKA,
+        requestId,
+        title: 'Monthly guard inspection',
+        scopeOfWork: 'Guard inspection',
+        serviceCategory: 'INSPECTION',
+        maintenanceLeadId: leadId,
+        frequency: 'WEEKLY',
+        byWeekdays: [2],
+        startDate: dateOnly(30),
+        windowStartTime: '09:00',
+        durationMinutes: 60,
+        deliverables: [],
+      });
+    assert.equal((await schedule(randomUUID())).statusCode, 400, 'unknown request');
+    const pending = await raise('Recurring guard inspection');
+    assert.equal((await schedule(pending)).statusCode, 409, 'request not yet approved');
+    await alpha.post(`/api/v1/service/requests/${pending}/approve`, {});
+    const sched = await schedule(pending);
+    assert.equal(sched.statusCode, 201);
+    await beta.post(`/api/v1/service/schedules/${sched.json().id}/approve`, {});
+    const gen = (await alpha.post(`/api/v1/service/schedules/${sched.json().id}/generate`, { from: dateOnly(30), to: dateOnly(44) })).json();
+    assert.ok(gen.created >= 2);
+    assert.equal((await alpha.get(`/api/v1/service/requests/${pending}`)).json().status, 'WORK_ORDERED');
   });
 
   it('isolates tenants and enforces row-level security on service tables', async () => {

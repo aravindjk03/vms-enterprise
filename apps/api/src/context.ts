@@ -1,5 +1,5 @@
 import type { EnterpriseRole, UserContext } from '@vms/types';
-import { evaluateAccess, type PermissionAction, type ResourceContext } from '@vms/permissions';
+import { evaluateAccess, hasPermissionMatch, ROLE_PERMISSIONS, type PermissionAction, type ResourceContext } from '@vms/permissions';
 import type { Tx } from './db.js';
 import { HttpError } from './errors.js';
 
@@ -86,6 +86,18 @@ export function authorize(user: UserContext, permission: PermissionAction, resou
   if (!decision.allowed) {
     throw new HttpError(403, 'FORBIDDEN', 'You do not have permission to perform this action.');
   }
+}
+
+/**
+ * True when `role` is the only one of the user's roles that grants `permission`, whichever role
+ * is primary. Used for rules that narrow what a role may do (a HOST decides only on visits they host).
+ */
+export function permissionOnlyFrom(user: UserContext, permission: PermissionAction, role: EnterpriseRole): boolean {
+  const held = [user.role, ...(user.roles ?? [])];
+  if (!held.includes(role)) return false;
+  const explicit = (user.permissions ?? []) as PermissionAction[];
+  if (hasPermissionMatch(explicit, permission)) return false;
+  return !held.some(r => r !== role && hasPermissionMatch(ROLE_PERMISSIONS[r] ?? [], permission));
 }
 
 export function canAccessSite(user: UserContext, siteId: string): boolean {

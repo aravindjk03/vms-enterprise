@@ -7,6 +7,7 @@ import { isUuid, type Tx } from '../../db.js';
 import { HttpError, notFound } from '../../errors.js';
 import { idempotent, sendResult } from '../../idempotency.js';
 import { audit, CategoryCode, DateOnly, Paging, recordStatus, referenceNumber, requireSite, siteScope, Uuid } from './common.js';
+import { lockRequestForWork, transitionRequest } from './requests.js';
 import { createWorkOrder, validateWorkOrderInput } from './work-orders.js';
 
 const ScheduleCreate = z
@@ -167,6 +168,7 @@ export async function registerScheduleRoutes(app: FastifyInstance, ctx: RouteCon
         if (!lead.rowCount) throw new HttpError(400, 'VALIDATION_ERROR', 'Maintenance lead not found.');
         const provider = await tx.query('SELECT 1 FROM service_providers WHERE service_provider_id = $1', [body.providerId]);
         if (!provider.rowCount) throw new HttpError(400, 'VALIDATION_ERROR', 'Provider not found.');
+        if (body.requestId) await lockRequestForWork(tx, body.requestId, body.siteId);
 
         const ref = referenceNumber('SSC');
         const { rows } = await tx.query<{ schedule_id: string }>(
@@ -251,6 +253,8 @@ export async function registerScheduleRoutes(app: FastifyInstance, ctx: RouteCon
         const range = Generate.parse(request.body);
         const occurrences = expandOccurrences(ruleOf(s), range.from, range.to);
 
+        // A linked request must still accept work; it moves to WORK_ORDERED with the first generated order.
+        const linkedRequest = s.request_id ? await lockRequestForWork(tx, s.request_id, s.site_id) : undefined;
         let created = 0;
         let existing = 0;
         const generated: Array<{ occurrenceDate: string; workOrderId: string; referenceNumber: string }> = [];
@@ -292,6 +296,7 @@ export async function registerScheduleRoutes(app: FastifyInstance, ctx: RouteCon
           generated.push({ occurrenceDate: occ.occurrenceDate, workOrderId: wo.id, referenceNumber: wo.referenceNumber });
           created++;
         }
+        if (linkedRequest && created > 0) await transitionRequest(tx, user, linkedRequest, 'WORK_ORDER_CREATED');
         await audit(tx, user, request.id, 'SERVICE_OCCURRENCES_GENERATED', 'SERVICE_SCHEDULE', s.schedule_id, {
           after: { from: range.from, to: range.to, created, existing },
         });

@@ -63,7 +63,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const rateLimiter = new RateLimiter({
     DEFAULT: { limit: 600, windowMs: 60_000 },
     LOGIN: { limit: config.loginRateLimitPerMinute, windowMs: 60_000 },
+    LOGIN_IP: { limit: config.loginRateLimitPerIpPerMinute ?? 100, windowMs: 60_000 },
   });
+  // Behind a reverse proxy without TRUST_PROXY every client appears as the proxy's address.
+  let proxyWarningLogged = false;
   const pruneTimer = setInterval(() => rateLimiter.prune(), 60_000);
   pruneTimer.unref();
   app.addHook('onClose', async () => clearInterval(pruneTimer));
@@ -92,7 +95,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       }
     }
 
-    if (isApi && !rateLimiter.checkRateLimit(request.ip, 'DEFAULT').allowed) {
+    if (!config.trustProxy && !proxyWarningLogged && request.headers['x-forwarded-for']) {
+      proxyWarningLogged = true;
+      request.log.warn('Requests carry X-Forwarded-For but TRUST_PROXY is off: client addresses (rate limits, audit) will be the proxy. Set TRUST_PROXY=true behind a trusted proxy.');
+    }
+    // Signed-in traffic is limited per user, so users behind one proxy or NAT address do not share a budget.
+    const bearer = request.headers.authorization?.startsWith('Bearer ') ? request.headers.authorization.slice(7) : undefined;
+    const caller = bearer ? verifyAccessToken(bearer, config.jwtSecret) : null;
+    const limitKey = caller ? `user:${caller.sub}` : `ip:${request.ip}`;
+    if (isApi && !rateLimiter.checkRateLimit(limitKey, 'DEFAULT').allowed) {
       return reply.code(429).send({ error: { code: 'RATE_LIMITED', message: 'Too many requests.', requestId: request.id } });
     }
   });

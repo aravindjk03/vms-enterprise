@@ -72,7 +72,8 @@ export type RequestAction = 'APPROVE' | 'REJECT' | 'CANCEL' | 'WORK_ORDER_CREATE
 const REQUEST_TRANSITIONS: Record<RequestAction, { from: RequestStatus[]; to: RequestStatus }> = {
   APPROVE: { from: ['SUBMITTED'], to: 'APPROVED' },
   REJECT: { from: ['SUBMITTED'], to: 'REJECTED' },
-  CANCEL: { from: ['SUBMITTED', 'APPROVED'], to: 'CANCELLED' },
+  // From WORK_ORDERED only when no work order was carried out (the API checks the work orders).
+  CANCEL: { from: ['SUBMITTED', 'APPROVED', 'WORK_ORDERED'], to: 'CANCELLED' },
   WORK_ORDER_CREATED: { from: ['APPROVED', 'WORK_ORDERED'], to: 'WORK_ORDERED' },
   FULFIL: { from: ['WORK_ORDERED'], to: 'FULFILLED' },
 };

@@ -9,13 +9,14 @@ export interface RateLimitResult {
   resetSeconds: number;
 }
 
-export type RateLimitCategory = 'LOGIN' | 'OTP' | 'SEARCH' | 'EXPORT' | 'DEFAULT';
+export type RateLimitCategory = 'LOGIN' | 'LOGIN_IP' | 'OTP' | 'SEARCH' | 'EXPORT' | 'DEFAULT';
 
 export class RateLimiter {
   private requests: Map<string, number[]> = new Map();
 
   private buckets: Record<RateLimitCategory, RateLimitBucket> = {
     LOGIN: { limit: 5, windowMs: 60 * 1000 },       // 5 per minute
+    LOGIN_IP: { limit: 100, windowMs: 60 * 1000 },  // per network address (offices share one NAT address)
     OTP: { limit: 3, windowMs: 60 * 1000 },         // 3 per minute
     SEARCH: { limit: 30, windowMs: 60 * 1000 },     // 30 per minute
     EXPORT: { limit: 5, windowMs: 5 * 60 * 1000 },  // 5 per 5 minutes

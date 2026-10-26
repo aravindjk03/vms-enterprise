@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { RouteContext } from '../app.js';
 import { writeAudit } from '../audit.js';
-import { authorize, canAccessSite, type AuthenticatedUser } from '../context.js';
+import { authorize, canAccessSite, permissionOnlyFrom, type AuthenticatedUser } from '../context.js';
 import { isUuid, type Tx } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 
@@ -68,6 +68,19 @@ async function lockVisitor(tx: Tx, user: AuthenticatedUser, id: string): Promise
   // Visible to staff assigned to the site, and to the employee hosting the visit.
   if (!visit || !(canAccessSite(user, visit.site_id) || visit.host_user_id === user.userId)) throw notFound('Visitor');
   return visit;
+}
+
+/**
+ * Paged list response. The window count comes with the rows; a page past the end has no rows, so the
+ * total is then counted separately (the client needs it to step back).
+ */
+async function withTotal(
+  rows: Array<Record<string, unknown>>,
+  q: { limit: number; offset: number },
+  countAll: () => Promise<{ rows: Array<{ n: number }> }>
+) {
+  const total = rows.length ? Number(rows[0]['total']) : q.offset > 0 ? (await countAll()).rows[0].n : 0;
+  return { items: rows.map(({ total: _t, ...r }) => r), total, limit: q.limit, offset: q.offset };
 }
 
 export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteContext): Promise<void> {
@@ -250,8 +263,9 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
         ownerId: opts.segregateFromCreator ? visit.created_by : undefined,
         currentState: visit.status,
       });
-      // Employees whose only role is HOST may decide on visits they host, nothing else.
-      if (opts.segregateFromCreator && user.role === 'HOST' && visit.host_user_id !== user.userId) {
+      // A user whose decision right comes only from the HOST role may decide on visits they host,
+      // nothing else, even when another role (e.g. receptionist) is their primary role.
+      if (opts.segregateFromCreator && permissionOnlyFrom(user, opts.permission, 'HOST') && visit.host_user_id !== user.userId) {
         throw new HttpError(403, 'FORBIDDEN', 'Only the visit host or site management can decide on this visit.');
       }
       if (!opts.from.includes(visit.status)) {
@@ -364,12 +378,13 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
         `SELECT c.company_id AS "id", c.vendor_code AS "vendorCode", coalesce(c.trade_name, o.trade_name, o.legal_name) AS "name",
                 c.contractor_classification AS "classification", c.safety_rating AS "safetyRating", c.status,
                 c.insurance_expiry_date AS "insuranceExpiry",
-                (SELECT count(*) FROM contractor_work_orders w WHERE w.company_id = c.company_id)::int AS "workOrders"
+                (SELECT count(*) FROM contractor_work_orders w WHERE w.company_id = c.company_id)::int AS "workOrders",
+                count(*) OVER()::int AS "total"
            FROM contractor_companies c JOIN external_organizations o ON o.org_id = c.external_org_id
           ORDER BY 3 LIMIT $1 OFFSET $2`,
         [q.limit, q.offset]
       );
-      return { items: rows };
+      return withTotal(rows, q, () => tx.query('SELECT count(*)::int AS n FROM contractor_companies'));
     })
   );
 
@@ -379,11 +394,11 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
       const q = Paging.parse(request.query);
       const { rows } = await tx.query(
         `SELECT customer_account_id AS "id", account_code AS "accountCode", account_name AS "name", tier,
-                classification, status, default_nda_required AS "ndaRequired"
+                classification, status, default_nda_required AS "ndaRequired", count(*) OVER()::int AS "total"
            FROM customer_accounts ORDER BY account_name LIMIT $1 OFFSET $2`,
         [q.limit, q.offset]
       );
-      return { items: rows };
+      return withTotal(rows, q, () => tx.query('SELECT count(*)::int AS n FROM customer_accounts'));
     })
   );
 
@@ -396,12 +411,13 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
       const q = Paging.extend({ entityId: z.string().max(64).optional() }).parse(request.query);
       const { rows } = await tx.query(
         `SELECT audit_id AS "id", "timestamp", actor_id AS "actorId", actor_role AS "actorRole", action,
-                entity_type AS "entityType", entity_id AS "entityId", request_id AS "requestId", reason
+                entity_type AS "entityType", entity_id AS "entityId", request_id AS "requestId", reason,
+                count(*) OVER()::int AS "total"
            FROM audit_logs WHERE ($1::text IS NULL OR entity_id = $1)
           ORDER BY "timestamp" DESC LIMIT $2 OFFSET $3`,
         [q.entityId ?? null, q.limit, q.offset]
       );
-      return { items: rows };
+      return withTotal(rows, q, () => tx.query('SELECT count(*)::int AS n FROM audit_logs WHERE ($1::text IS NULL OR entity_id = $1)', [q.entityId ?? null]));
     })
   );
 }

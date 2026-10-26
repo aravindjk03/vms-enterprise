@@ -52,6 +52,7 @@ describe('API + PostgreSQL integration', { skip: !ADMIN_URL && 'INTEGRATION_DATA
     refreshTokenTtlSeconds: 3600,
     maxFailedLogins: 5,
     loginRateLimitPerMinute: 1000,
+    refreshReuseGraceSeconds: 1,
     lockoutMinutes: 15,
     corsAllowedOrigins: [],
     trustProxy: false,
@@ -78,8 +79,10 @@ describe('API + PostgreSQL integration', { skip: !ADMIN_URL && 'INTEGRATION_DATA
       INSERT INTO tenants (tenant_id, code, name) VALUES ('00000000-0000-0000-0000-0000000000b2', 'RIVAL-CO', 'Rival Co');
       INSERT INTO organizations (organization_id, tenant_id, code, name) VALUES ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-0000000000b2', 'RIVAL', 'Rival');
       INSERT INTO users (user_id, tenant_id, organization_id, username, email, full_name)
-        VALUES ('00000000-0000-0000-0000-0000000000b4', '00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3', 'rival.admin', 'admin@rival.test', 'Rival Admin');
-      INSERT INTO roles (tenant_id, code, name) VALUES ('00000000-0000-0000-0000-0000000000b2', 'SUPER_ADMIN', 'Super Admin');`);
+        VALUES ('00000000-0000-0000-0000-0000000000b4', '00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3', 'rival.admin', 'admin@rival.test', 'Rival Admin');`);
+    // New tenants receive the full role catalog automatically (migration 009).
+    const rivalRoles = await owner.query("SELECT count(*)::int AS n FROM roles WHERE tenant_id = '00000000-0000-0000-0000-0000000000b2'");
+    assert.equal(rivalRoles.rows[0].n, 19);
     await setUserPassword(owner, 'RIVAL-CO', 'rival.admin', PASSWORDS.rival, 'SUPER_ADMIN');
 
     config.databaseUrl = withDatabase(ADMIN_URL!, dbName, appUser, appPassword);
@@ -172,6 +175,30 @@ describe('API + PostgreSQL integration', { skip: !ADMIN_URL && 'INTEGRATION_DATA
     assert.equal(hostApprove.statusCode, 200);
     assert.equal(hostApprove.json().status, 'APPROVED');
 
+    // A receptionist who is also a host may decide only on visits they host, even though HOST is not
+    // their primary role.
+    const { rows: recep } = await owner.query<{ user_id: string }>(
+      `INSERT INTO users (tenant_id, organization_id, username, email, full_name)
+       VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000010', 'recep.host', 'recep@example.test', 'Reception Host')
+       RETURNING user_id`
+    );
+    await owner.query("INSERT INTO user_site_access (user_id, site_id, tenant_id, is_default) VALUES ($1, $2, '00000000-0000-0000-0000-000000000001', true)", [
+      recep[0].user_id,
+      DETROIT,
+    ]);
+    await setUserPassword(owner, 'GLOBAL-MFG', 'recep.host', PASSWORDS.host, 'HOST');
+    await setUserPassword(owner, 'GLOBAL-MFG', 'recep.host', PASSWORDS.host, 'RECEPTIONIST');
+    const receptionist = await login('GLOBAL-MFG', 'recep.host', PASSWORDS.host);
+    assert.equal(receptionist.body.user.role, 'RECEPTIONIST');
+    const other = await app.inject({
+      method: 'POST',
+      url: '/api/v1/visitors',
+      headers: admin.auth,
+      payload: { siteId: DETROIT, hostUserId: HOST_MARY, firstName: 'Lee', lastName: 'Chan', companyName: 'Acme', scheduledStart: start, scheduledEnd: new Date(start.getTime() + 3600_000) },
+    });
+    const notTheirs = await app.inject({ method: 'POST', url: `/api/v1/visitors/${other.json().id}/approve`, headers: receptionist.auth, payload: {} });
+    assert.equal(notTheirs.statusCode, 403, 'host right does not extend to visits hosted by others');
+
     const gates = (await app.inject({ method: 'GET', url: `/api/v1/gates?siteId=${DETROIT}`, headers: guard.auth })).json().items;
     const gateId = gates[0].gateId;
     const checkIn = await app.inject({ method: 'POST', url: `/api/v1/visitors/${id}/check-in`, headers: guard.auth, payload: { gateId } });
@@ -233,6 +260,15 @@ describe('API + PostgreSQL integration', { skip: !ADMIN_URL && 'INTEGRATION_DATA
     const newAuth = { authorization: `Bearer ${rotated.json().accessToken}` };
     assert.equal((await app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: newAuth })).statusCode, 200);
 
+    // A parallel refresh from another tab (same old cookie, moments later) is told to retry, not treated as theft.
+    const race = await app.inject({ method: 'POST', url: '/api/v1/auth/refresh', headers: { cookie: session.cookie, ...csrf } });
+    assert.equal(race.statusCode, 409);
+    assert.equal(race.json().error.code, 'REFRESH_RACE');
+    assert.equal(race.headers['set-cookie'], undefined, 'the new cookie in the browser is left alone');
+    assert.equal((await app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: newAuth })).statusCode, 200);
+
+    // After the grace window the same replay is theft.
+    await new Promise(resolve => setTimeout(resolve, (config.refreshReuseGraceSeconds! + 0.2) * 1000));
     const replay = await app.inject({ method: 'POST', url: '/api/v1/auth/refresh', headers: { cookie: session.cookie, ...csrf } });
     assert.equal(replay.statusCode, 401, 'old refresh token is single-use');
     assert.equal((await app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: newAuth })).statusCode, 401, 'reuse revokes all sessions');
