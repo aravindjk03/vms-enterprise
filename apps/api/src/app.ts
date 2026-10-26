@@ -11,6 +11,7 @@ import { pendingMigrations, withTenant, type Db, type Tx } from './db.js';
 import { loadUserContext, type AuthenticatedUser } from './context.js';
 import { HttpError } from './errors.js';
 import { verifyAccessToken, type AccessTokenClaims } from './security/tokens.js';
+import { registerAdminRoutes } from './routes/admin.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerDomainRoutes } from './routes/domain.js';
 import { registerServiceRoutes } from './routes/service/index.js';
@@ -156,6 +157,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       if (!user) {
         throw new HttpError(401, 'UNAUTHENTICATED', 'Authentication required.');
       }
+      // A temporary password grants nothing except setting a new one (and signing out).
+      if (user.mustChangePassword && !request.url.startsWith('/api/v1/auth/')) {
+        throw new HttpError(403, 'PASSWORD_CHANGE_REQUIRED', 'Set a new password to continue.');
+      }
       return fn(tx, user);
     });
   };
@@ -179,6 +184,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   await registerAuthRoutes(app, ctx);
+  await registerAdminRoutes(app, ctx);
   await registerDomainRoutes(app, ctx);
   await registerServiceRoutes(app, ctx);
 

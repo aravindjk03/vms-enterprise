@@ -49,6 +49,11 @@ export async function setUserPassword(
              failed_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP`,
       [userId, tenantId, passwords.hashPassword(password)]
     );
+    await client.query(
+      `INSERT INTO user_password_history (tenant_id, user_id, password_hash, reason)
+       SELECT $1, $2, password_hash, 'BOOTSTRAP' FROM user_credentials WHERE user_id = $2`,
+      [tenantId, userId]
+    );
     // A password reset invalidates every existing session.
     await client.query('UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
 

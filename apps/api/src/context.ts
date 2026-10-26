@@ -29,6 +29,9 @@ const ROLE_PRIORITY: EnterpriseRole[] = [
 export interface AuthenticatedUser extends UserContext {
   username: string;
   fullName: string;
+  email: string;
+  /** Set after an administrator issues a temporary password; only the auth endpoints work until changed. */
+  mustChangePassword: boolean;
 }
 
 /**
@@ -43,9 +46,17 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     organization_id: string;
     username: string;
     full_name: string;
+    email: string;
     status: string;
     is_active: boolean;
-  }>('SELECT user_id, tenant_id, organization_id, username::text, full_name, status, is_active FROM users WHERE user_id = $1', [userId]);
+    must_change_password: boolean | null;
+  }>(
+    `SELECT u.user_id, u.tenant_id, u.organization_id, u.username::text, u.full_name, u.email::text, u.status, u.is_active,
+            c.must_change_password
+       FROM users u LEFT JOIN user_credentials c ON c.user_id = u.user_id
+      WHERE u.user_id = $1`,
+    [userId]
+  );
   const user = userRes.rows[0];
   if (!user || !user.is_active || user.status !== 'ACTIVE') return null;
 
@@ -70,6 +81,8 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     organizationId: user.organization_id,
     username: user.username,
     fullName: user.full_name,
+    email: user.email,
+    mustChangePassword: user.must_change_password === true,
     // Users without any role get the least-privileged baseline.
     role: roles[0] ?? 'HOST',
     roles: roles.slice(1),

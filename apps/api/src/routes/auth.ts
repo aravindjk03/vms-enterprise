@@ -6,13 +6,18 @@ import { writeAudit } from '../audit.js';
 import { withTenant, type Tx } from '../db.js';
 import { loadUserContext, type AuthenticatedUser } from '../context.js';
 import { HttpError } from '../errors.js';
-import { verifyPasswordAsync } from '../security/passwords.js';
+import { hashPasswordAsync, PASSWORD_HISTORY_LIMIT, passwordPolicyErrors, verifyPasswordAsync } from '../security/passwords.js';
 import { hashRefreshToken, issueAccessToken, newRefreshToken } from '../security/tokens.js';
 
 const REFRESH_COOKIE = 'vms_rt';
 const SESSION_HINT_COOKIE = 'vms_session';
 const REFRESH_PATH = '/api/v1/auth';
 const INVALID_LOGIN = 'Invalid credentials. Please verify your login details and try again.';
+
+const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(256),
+  newPassword: z.string().min(1).max(256),
+});
 
 const LoginSchema = z.object({
   tenantCode: z.string().trim().min(2).max(32),
@@ -66,6 +71,8 @@ export function describeUser(user: AuthenticatedUser) {
     siteIds: user.assignedSiteIds || [],
     defaultSiteId: user.siteId ?? null,
     permissions: Array.from(new Set(roles.flatMap(r => ROLE_PERMISSIONS[r] || []))),
+    email: user.email,
+    mustChangePassword: user.mustChangePassword,
   };
 }
 
@@ -245,4 +252,54 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext
   });
 
   app.get('/api/v1/auth/me', async request => ctx.asUser(request, async (_tx, user) => describeUser(user)));
+
+  // Self-service password change; also how a user leaves a temporary (administrator-issued) password.
+  app.post('/api/v1/auth/change-password', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const body = ChangePasswordSchema.parse(request.body);
+      if (!ctx.rateLimiter.checkRateLimit(`password-change:${user.userId}`, 'LOGIN').allowed) {
+        throw new HttpError(429, 'RATE_LIMITED', 'Too many attempts. Please wait a minute and try again.');
+      }
+      const { rows } = await tx.query<{ password_hash: string }>('SELECT password_hash FROM user_credentials WHERE user_id = $1 FOR UPDATE', [user.userId]);
+      if (!rows[0] || !(await verifyPasswordAsync(body.currentPassword, rows[0].password_hash))) {
+        // Rate limited above; the rejected attempt is logged by the request logger, not the (rolled back) audit trail.
+        request.log.warn({ userId: user.userId }, 'password change with wrong current password');
+        throw new HttpError(400, 'INVALID_CURRENT_PASSWORD', 'The current password is not correct.');
+      }
+      const problems = passwordPolicyErrors(body.newPassword);
+      if (problems.length) throw new HttpError(400, 'PASSWORD_POLICY', problems.join(' '));
+      if (body.newPassword.toLowerCase().includes(user.username.toLowerCase())) {
+        throw new HttpError(400, 'PASSWORD_POLICY', 'The password must not contain your username.');
+      }
+      const recent = await tx.query<{ password_hash: string }>(
+        'SELECT password_hash FROM user_password_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+        [user.userId, PASSWORD_HISTORY_LIMIT]
+      );
+      for (const old of [rows[0].password_hash, ...recent.rows.map(r => r.password_hash)]) {
+        if (await verifyPasswordAsync(body.newPassword, old)) {
+          throw new HttpError(400, 'PASSWORD_REUSED', `Choose a password you have not used for your last ${PASSWORD_HISTORY_LIMIT} changes.`);
+        }
+      }
+      const hash = await hashPasswordAsync(body.newPassword);
+      await tx.query(
+        `UPDATE user_credentials SET password_hash = $2, must_change_password = FALSE, password_changed_at = now(),
+                failed_attempts = 0, locked_until = NULL, updated_at = now() WHERE user_id = $1`,
+        [user.userId, hash]
+      );
+      await tx.query(
+        `INSERT INTO user_password_history (tenant_id, user_id, password_hash, set_by, reason) VALUES ($1, $2, $3, $2, 'SELF_CHANGE')`,
+        [user.tenantId, user.userId, hash]
+      );
+      // Other devices must sign in again with the new password; this session continues.
+      await tx.query('UPDATE user_sessions SET revoked_at = now() WHERE user_id = $1 AND session_id <> $2 AND revoked_at IS NULL', [
+        user.userId,
+        user.sessionId,
+      ]);
+      await writeAudit(tx, {
+        tenantId: user.tenantId, actorId: user.userId, actorRole: user.role, action: 'PASSWORD_CHANGED',
+        entityType: 'USER', entityId: user.userId, requestId: request.id,
+      });
+      return describeUser({ ...user, mustChangePassword: false });
+    })
+  );
 }

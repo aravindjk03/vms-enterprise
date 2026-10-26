@@ -35,6 +35,7 @@ export interface Session {
   get(url: string): Promise<LightMyRequestResponse>;
   post(url: string, payload?: unknown, headers?: Record<string, string>): Promise<LightMyRequestResponse>;
   patch(url: string, payload?: unknown): Promise<LightMyRequestResponse>;
+  put(url: string, payload?: unknown): Promise<LightMyRequestResponse>;
 }
 
 /** Creates a throwaway database, applies every migration, creates the RLS runtime role and boots the API. */
@@ -88,6 +89,7 @@ export async function createTestEnv(): Promise<TestEnv> {
         get: url => app.inject({ method: 'GET', url, headers: auth }),
         post: (url, payload = {}, headers = {}) => app.inject({ method: 'POST', url, payload: payload as object, headers: { ...auth, ...headers } }),
         patch: (url, payload = {}) => app.inject({ method: 'PATCH', url, payload: payload as object, headers: auth }),
+        put: (url, payload = {}) => app.inject({ method: 'PUT', url, payload: payload as object, headers: auth }),
       };
     },
     async close() {
