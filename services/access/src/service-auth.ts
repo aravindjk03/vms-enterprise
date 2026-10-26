@@ -1,9 +1,12 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { ServiceIdentity, ServiceTokenPayload } from '@vms/types';
 import { SecurityError } from './errors.js';
 
 export class ServiceAuthService {
+  private static readonly MAX_TTL_SECONDS = 900;
   private services: Map<string, ServiceIdentity> = new Map();
+  /** nonce -> expiresAt (epoch seconds); each token is accepted once within its lifetime. */
+  private seenNonces: Map<string, number> = new Map();
 
   /**
    * Registers a trusted internal service identity.
@@ -27,6 +30,10 @@ export class ServiceAuthService {
 
     if (!service.allowedAudiences.includes(targetAudience) && !service.allowedAudiences.includes('*')) {
       throw new SecurityError('AUTHORIZATION_DENIED', `Service '${sourceServiceId}' is not authorized to communicate with '${targetAudience}'.`);
+    }
+
+    if (!Number.isFinite(ttlSeconds) || ttlSeconds <= 0 || ttlSeconds > ServiceAuthService.MAX_TTL_SECONDS) {
+      throw new SecurityError('VALIDATION_ERROR', `Service token TTL must be between 1 and ${ServiceAuthService.MAX_TTL_SECONDS} seconds.`, 400);
     }
 
     const now = Math.floor(Date.now() / 1000);
@@ -77,20 +84,34 @@ export class ServiceAuthService {
       .update(serializedPayload)
       .digest('base64url');
 
-    if (signature !== expectedSig) {
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
       return { valid: false, error: 'Service token signature mismatch.' };
     }
 
-    // Check expiration
+    // Check expiration (a missing or non-numeric expiry is invalid, never "no expiry")
     const now = Math.floor(Date.now() / 1000);
-    if (now > payload.expiresAt) {
+    if (typeof payload.expiresAt !== 'number' || !Number.isFinite(payload.expiresAt) || now > payload.expiresAt) {
       return { valid: false, error: 'Service token has expired.' };
+    }
+    if (typeof payload.issuedAt !== 'number' || payload.expiresAt - payload.issuedAt > ServiceAuthService.MAX_TTL_SECONDS) {
+      return { valid: false, error: 'Service token lifetime exceeds policy.' };
     }
 
     // Check audience
     if (payload.audience !== expectedAudience && payload.audience !== '*') {
       return { valid: false, error: `Audience mismatch: expected '${expectedAudience}', got '${payload.audience}'.` };
     }
+
+    // Replay protection
+    for (const [nonce, exp] of this.seenNonces) {
+      if (exp < now) this.seenNonces.delete(nonce);
+    }
+    if (typeof payload.nonce !== 'string' || this.seenNonces.has(`${payload.serviceId}:${payload.nonce}`)) {
+      return { valid: false, error: 'Service token replay detected.' };
+    }
+    this.seenNonces.set(`${payload.serviceId}:${payload.nonce}`, payload.expiresAt);
 
     return { valid: true, payload };
   }

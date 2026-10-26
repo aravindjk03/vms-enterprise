@@ -59,14 +59,14 @@ export class PrivacyConsentService {
 
     if (personConsents.length === 0) return false;
 
-    // If specific purpose provided, check matching purpose
-    if (purpose) {
-      return personConsents.some(c => c.accepted && c.purpose.toLowerCase() === purpose.toLowerCase());
-    }
+    // The most recent decision wins, so a later refusal overrides an earlier acceptance.
+    const relevant = purpose
+      ? personConsents.filter(c => c.purpose.toLowerCase() === purpose.toLowerCase())
+      : personConsents;
+    if (relevant.length === 0) return false;
 
-    // Latest consent for this type must be accepted
-    personConsents.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    return personConsents[0].accepted;
+    relevant.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    return relevant[0].accepted;
   }
 
   /**

@@ -665,14 +665,24 @@ export function maskRecord<T extends Record<string, unknown>>(
     return { ...record };
   }
 
-  const sanitized: Record<string, unknown> = { ...record };
-  for (const field of decision.maskedFields) {
-    if (field in sanitized) {
-      delete sanitized[field];
+  return redactFields(record, new Set(decision.maskedFields)) as T;
+}
+
+/** Removes masked fields at any depth, including inside arrays of nested records. */
+function redactFields(value: unknown, masked: Set<string>): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => redactFields(item, masked));
+  }
+  if (value === null || typeof value !== 'object' || value instanceof Date) {
+    return value;
+  }
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (!masked.has(key)) {
+      sanitized[key] = redactFields(child, masked);
     }
   }
-
-  return sanitized as T;
+  return sanitized;
 }
 
 /**

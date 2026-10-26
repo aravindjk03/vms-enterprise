@@ -136,8 +136,9 @@ export class AuthenticationService {
 
     const user = authResult.user;
 
-    // Check MFA Requirement
-    const requiresMfa = this.mfaService.isMfaRequired(user.role, user.mfaEnforced);
+    // Check MFA Requirement: mandatory roles, explicit enforcement, or any user who enrolled a factor
+    const requiresMfa =
+      this.mfaService.isMfaRequired(user.role, user.mfaEnforced) || this.mfaService.isEnrolled(user.userId);
     if (requiresMfa) {
       const challenge = this.mfaService.createChallenge(user.userId, user.tenantId);
       return {
@@ -192,6 +193,10 @@ export class AuthenticationService {
     if (!user) {
       return { success: false, error: 'User record not found.' };
     }
+    // Account state may have changed between the password and MFA steps.
+    if (!user.isActive || (user.lockedUntil && Date.now() < user.lockedUntil.getTime())) {
+      return { success: false, error: 'Invalid credentials. Please verify your login details and try again.' };
+    }
 
     const session = this.sessionService.createSession(user.userId, user.tenantId, metadata);
     const userContext: UserContext = {
@@ -224,6 +229,11 @@ export class AuthenticationService {
     mfaToken: string,
     metadata?: { ipAddress?: string; userAgent?: string; deviceInfo?: string }
   ): LoginResult {
-    return this.verifyMfaLogin(challengeId, mfaToken, metadata);
+    const result = this.verifyMfaLogin(challengeId, mfaToken, metadata);
+    if (result.success && result.userContext?.userId !== userId) {
+      if (result.session) this.sessionService.revokeSession(result.session.sessionId, 'MFA challenge user mismatch');
+      return { success: false, error: 'MFA verification failed.' };
+    }
+    return result;
   }
 }

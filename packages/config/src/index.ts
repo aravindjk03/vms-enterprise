@@ -1,4 +1,4 @@
-import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
+import { randomBytes, createCipheriv, createDecipheriv, createHmac } from 'node:crypto';
 
 export type Environment = 'development' | 'test' | 'staging' | 'production';
 
@@ -96,7 +96,11 @@ export class SoftwareKmsProvider implements IKeyManagementService {
 
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
-    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    // Reject truncated tags: GCM would otherwise accept tags as short as 4 bytes.
+    if (iv.length !== 12 || authTag.length !== 16) {
+      throw new Error('Malformed KMS encrypted envelope');
+    }
+    const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
     decipher.setAuthTag(authTag);
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
@@ -127,18 +131,45 @@ export class SecretManager {
     this.kms = provider;
   }
 
-  public static getSecret(key: string, fallback?: string): string {
-    const val = process.env[key];
-    if (val) return val;
+  private static devSecrets: Map<string, string> = new Map();
 
-    const env = (process.env['NODE_ENV'] || 'development') as Environment;
-    if (env === 'production') {
-      throw new Error(`CRITICAL SECURITY FAILURE: Required secret '${key}' is missing in production environment.`);
+  /**
+   * Returns a secret from the environment.
+   * Fails closed everywhere except explicit `development`/`test` (an unset, misspelled or
+   * `staging` NODE_ENV is treated as production), and never accepts template placeholders.
+   * Development fallbacks are random per process, so no well-known key exists.
+   */
+  public static getSecret(key: string): string {
+    const val = process.env[key];
+    if (val && !isPlaceholderSecret(val)) return val;
+
+    const env = process.env['NODE_ENV'];
+    if (env !== 'development' && env !== 'test') {
+      const problem = val ? 'still set to a template placeholder' : 'missing';
+      throw new Error(`CRITICAL SECURITY FAILURE: Required secret '${key}' is ${problem} (NODE_ENV=${env ?? 'unset'}).`);
     }
 
-    if (fallback !== undefined) return fallback;
-    return `mock-dev-secret-${key.toLowerCase()}`;
+    let devValue = this.devSecrets.get(key);
+    if (!devValue) {
+      devValue = randomBytes(32).toString('base64url');
+      this.devSecrets.set(key, devValue);
+    }
+    return devValue;
   }
+}
+
+/** Detects values copied verbatim from .example.env. */
+export function isPlaceholderSecret(value: string): boolean {
+  return /^(PLACEHOLDER|CHANGE_?ME)/i.test(value.trim()) || /CHANGE_ME|PLACEHOLDER/.test(value);
+}
+
+/**
+ * Derives a per-tenant HMAC key for signing gate e-passes from EPASS_SIGNING_SECRET.
+ * Keys are domain-separated by purpose so a visitor pass key never validates a customer pass.
+ */
+export function deriveTenantSigningKey(tenantId: string, purpose: string): Buffer {
+  const master = SecretManager.getSecret('EPASS_SIGNING_SECRET');
+  return createHmac('sha256', master).update(`vms-epass:${purpose}:${tenantId}`).digest();
 }
 
 export function loadAppConfig(): AppConfig {
@@ -157,7 +188,7 @@ export function loadAppConfig(): AppConfig {
       ssl: process.env['DATABASE_SSL'] === 'true' || env === 'production',
     },
     security: {
-      jwtSecret: SecretManager.getSecret('JWT_SECRET', 'dev-insecure-jwt-key-minimum-32-chars-long!'),
+      jwtSecret: SecretManager.getSecret('JWT_SECRET'),
       jwtExpirationSeconds: parseInt(process.env['JWT_EXPIRATION_SECONDS'] || '3600', 10),
       jwtRefreshExpirationSeconds: parseInt(process.env['JWT_REFRESH_EXPIRATION_SECONDS'] || '604800', 10),
       sessionInactivityMinutes: parseInt(process.env['AUTH_SESSION_INACTIVITY_TIMEOUT_MINUTES'] || '30', 10),

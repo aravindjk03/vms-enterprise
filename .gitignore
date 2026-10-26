@@ -55,3 +55,7 @@ services/**/*.js
 services/**/*.d.ts
 tests/**/*.js
 tests/**/*.d.ts
+
+# Every environment-specific dotenv file (only the template is committed)
+.env.*
+!.example.env

@@ -41,6 +41,15 @@ export class TamperEvidentAuditService {
     'authorization',
     'facialbiometrictemplate',
     'biometrictemplate',
+    'otp',
+    'totp',
+    'mfacode',
+    'pin',
+    'recoverycode',
+    'governmentid',
+    'nationalid',
+    'passportnumber',
+    'aadhaar',
   ];
 
   private records: AuditRecord[] = [];
@@ -197,14 +206,22 @@ export class TamperEvidentAuditService {
       const lowerKey = key.toLowerCase();
       if (TamperEvidentAuditService.SENSITIVE_KEYS_BLACKLIST.some(k => lowerKey.includes(k))) {
         sanitized[key] = '[REDACTED_SECRET]';
-      } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-        sanitized[key] = this.scrubSensitiveData(value as Record<string, unknown>);
       } else {
-        sanitized[key] = value;
+        sanitized[key] = this.scrubValue(value);
       }
     }
 
     return sanitized;
+  }
+
+  private scrubValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map(item => this.scrubValue(item));
+    }
+    if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+      return this.scrubSensitiveData(value as Record<string, unknown>);
+    }
+    return value;
   }
 
   /**

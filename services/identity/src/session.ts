@@ -183,6 +183,14 @@ export class SessionSecurityService {
       session.revokedReason = 'Session expired.';
       throw new Error('Cannot refresh an expired session.');
     }
+    // Refreshing must not revive a session that has already idled out.
+    const inactivityMs = this.config.inactivityTimeoutMinutes * 60 * 1000;
+    if (now.getTime() - session.lastActivityAt.getTime() > inactivityMs) {
+      session.isRevoked = true;
+      session.revokedAt = now;
+      session.revokedReason = 'Session timed out due to inactivity.';
+      throw new Error('Cannot refresh a session that timed out due to inactivity.');
+    }
     session.lastActivityAt = now;
     return { ...session };
   }

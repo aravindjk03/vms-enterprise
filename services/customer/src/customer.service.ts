@@ -8,6 +8,7 @@
 
 import { randomUUID, createHmac } from 'node:crypto';
 import type { RelationalDatabase } from '@vms/database';
+import { deriveTenantSigningKey } from '@vms/config';
 import { TransportService } from '@vms/transport';
 import { GHGCalculationEngine, OrganizationalScopeRegistry } from '@vms/ghg';
 import type {
@@ -2043,12 +2044,12 @@ export class CustomerService {
       ? participants.find((p: any) => p.participant_id === participantId)
       : participants[0];
 
-    const secretKey = 'vms-customer-epass-enterprise-secret-key-2026';
-    const payload = `${tenantId}:${customerVisitId}:${visit.reference_number}:${targetParticipant?.participant_id || 'ALL'}`;
-    const token = createHmac('sha256', secretKey).update(payload).digest('hex');
-
     const passId = randomUUID();
-    const qrPayload = `vms://customer-pass/${visit.reference_number}?token=${token.slice(0, 16)}`;
+    const passExpiresAt = new Date(new Date(visit.scheduled_end).getTime() + 4 * 60 * 60 * 1000); // 4h grace period
+    const signingKey = deriveTenantSigningKey(tenantId, 'customer');
+    const payload = `${tenantId}:${passId}:${customerVisitId}:${visit.reference_number}:${targetParticipant?.participant_id || 'ALL'}:${passExpiresAt.getTime()}`;
+    const token = createHmac('sha256', signingKey).update(payload).digest('base64url');
+    const qrPayload = `vms://customer-pass/${visit.reference_number}?pass=${passId}&token=${token}`;
 
     return {
       passId,
@@ -2065,7 +2066,7 @@ export class CustomerService {
       token,
       qrPayload,
       issuedAt: new Date(),
-      expiresAt: new Date(new Date(visit.scheduled_end).getTime() + 4 * 60 * 60 * 1000), // 4h grace period
+      expiresAt: passExpiresAt,
     };
   }
 

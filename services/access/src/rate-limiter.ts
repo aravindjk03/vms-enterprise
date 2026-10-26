@@ -33,7 +33,8 @@ export class RateLimiter {
    * Returns whether the request is allowed or rate-limited.
    */
   public checkRateLimit(clientId: string, category: RateLimitCategory = 'DEFAULT'): RateLimitResult {
-    const bucket = this.buckets[category] || this.buckets.DEFAULT;
+    // Own-property lookup: '__proto__' / 'constructor' must not resolve to a prototype object.
+    const bucket = Object.hasOwn(this.buckets, category) ? this.buckets[category] : this.buckets.DEFAULT;
     const now = Date.now();
     const key = `${category}:${clientId}`;
 
