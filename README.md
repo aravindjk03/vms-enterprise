@@ -117,6 +117,15 @@ vms-enterprise/
 - Immutable turnstile gate attendance ledger with shift overstay sweeps and audited manual adjustments.
 - Scope 3 Category 7 (Employee Commuting) carbon activity capture with zero-blocker resilience and group shuttle deduplication.
 
+### Part 9: Service / Work Management (live on PostgreSQL)
+- Independent Service domain: providers and technicians on canonical organizations and persons, requests distinct from work orders.
+- Request and work-order state machines with segregation of duties, provider/technician eligibility and schedule-conflict detection.
+- Recurring schedules with DST-safe, idempotent occurrence generation; missed-occurrence exceptions (never auto-completed).
+- Distinct, append-only arrival / prerequisite check / start / completion / departure milestones; evidence-gated, independently accepted completion.
+- Safety and Gate stay separate boundaries (adapters report *unavailable*; manual prerequisite check by EHS only).
+- Technician journeys stored once per physical trip, corrected by supersession, and captured into the GHG activity ledger through a durable outbox (no emission factors or CO2e invented).
+- New `SERVICE_MANAGER` role; menus and actions follow the permissions the server grants. Docs: [`docs/service/`](docs/service/).
+
 ---
 
 ## 🛠 Running the Platform
@@ -148,6 +157,7 @@ vms-enterprise/
 | Sign-in, sessions, roles, site scoping | **Live** (PostgreSQL) |
 | Executive dashboard KPI strip | **Live** |
 | Visitor register: pre-register → approve/reject → gate check-in → check-out, cancel | **Live** |
+| Service management: requests, work orders, technicians, calendar, recurring schedules, exceptions, transport capture | **Live** |
 | Contractor companies, customer accounts, audit ledger | **Live** (read) |
 | All other module screens (analytics, ESG, materials, workflows, …) | Sample data, clearly labelled in the UI |
 
@@ -228,10 +238,11 @@ See [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) for the security review
 
 ## 📊 Verification & Test Metrics
 
-- **Unit / domain tests**: 286 passed across 22 suites (`npm test`)
-- **Integration tests**: 9 end-to-end scenarios on real PostgreSQL — migrations & drift detection, RLS, privileged
+- **Unit / domain tests**: 305 passed across 28 suites (`npm test`)
+- **Integration tests**: 19 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
   role refusal, login lockout, visitor lifecycle with segregation of duties, cross-tenant isolation, refresh-token
-  rotation/reuse, input validation and security headers (`npm run test:integration`)
+  rotation/reuse, input validation and security headers, plus 10 Service scenarios (`npm run test:integration`).
+  Details: [`docs/service/test-results.md`](docs/service/test-results.md)
 - **TypeScript Typecheck**: 0 errors (`tsc --noEmit`)
 - **Dependencies**: `npm audit` — 0 known vulnerabilities
 - **Architecture Documentation**: 60+ documents with 100+ Mermaid diagrams
