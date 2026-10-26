@@ -4,7 +4,7 @@
 [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-8.3-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38b2ac.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-286%20unit%20%2B%209%20integration-success.svg)](https://nodejs.org/api/test.html)
+[![Tests](https://img.shields.io/badge/Tests-305%20unit%20%2B%2021%20integration-success.svg)](https://nodejs.org/api/test.html)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 
@@ -61,7 +61,7 @@ vms-enterprise/
 │   ├── visitor/               # Visitor lifecycle, group booking, overstay SLA, Scope 3 Cat 6
 │   ├── customer/              # Customer audits, PPAP inspection workflow, bilateral NDA gating
 │   └── contractor/            # Vendor MSAs, headcount caps, craft roster, Scope 3 Cat 7 commuter carbon
-├── tests/                     # Unit, domain and security suites (286) + tests/integration (API + PostgreSQL)
+├── tests/                     # Unit, domain and security suites (305) + tests/integration (API + PostgreSQL)
 ├── Dockerfile                 # Production image (API + console, non-root)
 └── docker-compose.yml         # PostgreSQL + migrations + API
 ```
@@ -158,11 +158,18 @@ vms-enterprise/
 | Executive dashboard KPI strip | **Live** |
 | Visitor register: pre-register → approve/reject → gate check-in → check-out, cancel | **Live** |
 | Service management: requests, work orders, technicians, calendar, recurring schedules, exceptions, transport capture | **Live** |
-| Contractor companies, customer accounts, audit ledger | **Live** (read) |
-| All other module screens (analytics, ESG, materials, workflows, …) | Sample data, clearly labelled in the UI |
+| Contractor companies, customer accounts, audit ledger | **Live** (read, paged) |
+| All other module screens (analytics, ESG, materials, workflows, …) | **Preview**: sample data, listed in a separate "Preview" menu group and labelled on screen |
 
-Without an API (e.g. the GitHub Pages build) the console starts in **demo mode**: sample data everywhere and a
-role switcher for previewing personas.
+**Role-based menus.** A signed-in user's menu is built from the permissions the server grants across *all* of
+their roles (19 roles; every tenant gets the full catalog, see `packages/database/migrations/009_role_catalog.sql`).
+Hiding a menu item is never the control: every API route checks permissions, site scope and segregation of duties.
+
+**Demo mode** is used only by demo builds (`VITE_DEMO_MODE=true`, e.g. GitHub Pages) or a host with no API at all:
+sample data everywhere and a role switcher for previewing personas. A production console whose server is briefly
+unreachable shows a "Can't reach the server" screen and retries; it never falls back to sample data.
+
+The console works on phones and tablets: below 900px the menu becomes a drawer.
 
 ### Quick start with Docker Compose (recommended)
 
@@ -179,7 +186,10 @@ open http://localhost:8080             # organization code: GLOBAL-MFG
 
 The seed migration (`002_seed_data.sql`) creates the demo tenant `GLOBAL-MFG` with sites, gates and users
 (`admin.detroit`, `guard.detroit`, `host.mary`, `esg.officer`); none of them can sign in until a password is set
-with `db:bootstrap-user`. Put a TLS-terminating reverse proxy in front for real deployments and set `TRUST_PROXY=true`.
+with `db:bootstrap-user`. Put a TLS-terminating reverse proxy in front for real deployments and set `TRUST_PROXY=true`
+(the API logs a warning when it sees `X-Forwarded-For` while this is off). The refresh cookie is `Secure` in production;
+`COOKIE_SECURE=false` exists only for plain-HTTP test setups. Signed-in traffic is rate limited per user; sign-in per
+account (`RATE_LIMIT_LOGIN_MAX`) and per network address (`RATE_LIMIT_LOGIN_IP_MAX`, default 100 for office NAT).
 
 ### Local development (without Docker)
 
@@ -204,7 +214,7 @@ npm run dev                             # optional: Vite UI on :3000 in demo mod
 | `npm run db:bootstrap-user` | Set a user's password (policy-checked) and optionally grant a role |
 | `npm run api:dev` / `npm run api:start` | Run the API (+ web console) |
 | `npm run build` | Typecheck and build the web console |
-| `npm test` | 286 unit / domain tests |
+| `npm test` | 305 unit / domain tests |
 | `npm run test:integration` | API + PostgreSQL end-to-end tests (needs `INTEGRATION_DATABASE_URL` of a role that can create databases) |
 
 Migrations are recorded in `schema_migrations` with a SHA-256 checksum; editing an applied migration is refused —
@@ -239,10 +249,11 @@ See [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) for the security review
 ## 📊 Verification & Test Metrics
 
 - **Unit / domain tests**: 305 passed across 28 suites (`npm test`)
-- **Integration tests**: 19 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
-  role refusal, login lockout, visitor lifecycle with segregation of duties, cross-tenant isolation, refresh-token
-  rotation/reuse, input validation and security headers, plus 10 Service scenarios (`npm run test:integration`).
-  Details: [`docs/service/test-results.md`](docs/service/test-results.md)
+- **Integration tests**: 21 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
+  role refusal, login lockout, visitor lifecycle with segregation of duties (including secondary HOST roles),
+  cross-tenant isolation, refresh-token rotation, parallel-tab refresh and reuse detection, input validation and
+  security headers, plus 12 Service scenarios (`npm run test:integration`).
+  Details: [`docs/service/test-results.md`](docs/service/test-results.md) and [`docs/LAUNCH_READINESS.md`](docs/LAUNCH_READINESS.md)
 - **TypeScript Typecheck**: 0 errors (`tsc --noEmit`)
 - **Dependencies**: `npm audit` — 0 known vulnerabilities
 - **Architecture Documentation**: 60+ documents with 100+ Mermaid diagrams
