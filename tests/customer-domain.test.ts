@@ -75,8 +75,8 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
     const input: CreateCustomerAccountInput = {
       tenantId: TENANT_A,
       accountCode: 'CUS-ACC-TSLA',
-      legalName: 'Tesla Motors Global Powertrain Inc.',
-      tradeName: 'Tesla Inc.',
+      legalName: 'Voltaris Motors Global Powertrain Inc.',
+      tradeName: 'Voltaris Inc.',
       classification: 'OEM_CUSTOMER',
       tier: 'GLOBAL_ENTERPRISE',
       registrationNumber: 'EIN-88192019',
@@ -100,7 +100,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
       async () => {
         await service.createCustomerAccount({
           ...input,
-          legalName: 'Tesla Another Subsidiary',
+          legalName: 'Voltaris Another Subsidiary',
         });
       },
       /already exists/
@@ -109,7 +109,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
     // Retrieve account by ID
     const retrieved = await service.getCustomerAccountById(TENANT_A, account.customerAccountId);
     assert.ok(retrieved);
-    assert.strictEqual(retrieved?.legalName, 'Tesla Motors Global Powertrain Inc.');
+    assert.strictEqual(retrieved?.legalName, 'Voltaris Motors Global Powertrain Inc.');
   });
 
   // ==========================================================================
@@ -119,7 +119,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
     const account = await service.createCustomerAccount({
       tenantId: TENANT_A,
       accountCode: 'CUS-ACC-TYTA',
-      legalName: 'Toyota Motor Manufacturing Asia',
+      legalName: 'Kintaro Motor Manufacturing Asia',
       classification: 'OEM_CUSTOMER',
       tier: 'GLOBAL_ENTERPRISE',
     });
@@ -128,7 +128,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
       tenantId: TENANT_A,
       customerAccountId: account.customerAccountId,
       fullName: 'Kenji Takahashi',
-      email: 'kenji.takahashi@toyota.com',
+      email: 'kenji.takahashi@kintaro.com',
       phone: '+65-6888-9120',
       jobTitle: 'Chief Quality Auditor',
       department: 'TPS Audit Division',
@@ -165,8 +165,8 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
   it('3. enforces precedence hierarchy: Site Security Rules > Global Defaults > Customer Account Rules > Visit Type Requirements', async () => {
     const account = await service.createCustomerAccount({
       tenantId: TENANT_A,
-      accountCode: 'CUS-ACC-BMW',
-      legalName: 'BMW Group Chassis Systems',
+      accountCode: 'CUS-ACC-Bavaro',
+      legalName: 'Bavaro Group Chassis Systems',
       classification: 'STRATEGIC_CUSTOMER',
       tier: 'TIER_1_STRATEGIC',
       defaultPhotographyPolicy: 'PERMITTED', // Customer preference is PERMITTED
@@ -192,7 +192,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
       scheduledStart: new Date(Date.now() + 2 * 60 * 60 * 1000),
       scheduledEnd: new Date(Date.now() + 4 * 60 * 60 * 1000),
       participants: [
-        { fullName: 'Marcus Weber', email: 'marcus@bmw.com', phone: '+49-89-123', isLead: true },
+        { fullName: 'Marcus Weber', email: 'marcus@bavaro.com', phone: '+49-89-123', isLead: true },
       ],
     });
 
@@ -213,7 +213,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
     const account = await service.createCustomerAccount({
       tenantId: TENANT_A,
       accountCode: 'CUS-ACC-BSCH',
-      legalName: 'Robert Bosch Mobility Solutions',
+      legalName: 'Robert Brannick Mobility Solutions',
       classification: 'QUALITY_CUSTOMER',
       tier: 'KEY_ACCOUNT',
     });
@@ -234,7 +234,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
         leadAuditorName: 'Elena Rostova',
       },
       participants: [
-        { fullName: 'Elena Rostova', email: 'elena@bosch.de', phone: '+49-711-811', isLead: true },
+        { fullName: 'Elena Rostova', email: 'elena@brannick.de', phone: '+49-711-811', isLead: true },
       ],
     });
 
@@ -276,7 +276,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
     const account = await service.createCustomerAccount({
       tenantId: TENANT_A,
       accountCode: 'CUS-ACC-TYTA2',
-      legalName: 'Toyota Motor Corp Global',
+      legalName: 'Kintaro Motor Corp Global',
       classification: 'OEM_CUSTOMER',
       tier: 'GLOBAL_ENTERPRISE',
     });
@@ -292,9 +292,9 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
       scheduledStart: new Date(Date.now() - 30 * 60 * 1000),
       scheduledEnd: new Date(Date.now() + 4 * 60 * 60 * 1000),
       participants: [
-        { fullName: 'Kenji Takahashi', email: 'kenji@toyota.com', phone: '+65-111', isLead: true },
-        { fullName: 'Hiroshi Sato', email: 'hiroshi@toyota.com', phone: '+65-222', isLead: false },
-        { fullName: 'Yuki Nomura', email: 'yuki@toyota.com', phone: '+65-333', isLead: false },
+        { fullName: 'Kenji Takahashi', email: 'kenji@kintaro.com', phone: '+65-111', isLead: true },
+        { fullName: 'Hiroshi Sato', email: 'hiroshi@kintaro.com', phone: '+65-222', isLead: false },
+        { fullName: 'Yuki Nomura', email: 'yuki@kintaro.com', phone: '+65-333', isLead: false },
       ],
     });
 
@@ -333,7 +333,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
     const account = await service.createCustomerAccount({
       tenantId: TENANT_A,
       accountCode: 'CUS-ACC-TSLA-TRP',
-      legalName: 'Tesla Engineering Delegation',
+      legalName: 'Voltaris Engineering Delegation',
       classification: 'OEM_CUSTOMER',
       tier: 'GLOBAL_ENTERPRISE',
     });
@@ -343,14 +343,14 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
       siteId: SITE_1,
       customerAccountId: account.customerAccountId,
       visitTypeCode: 'DELEGATION_VISIT',
-      title: 'Tesla Battery Engineering Delegation',
+      title: 'Voltaris Battery Engineering Delegation',
       hostUserId: HOST_USER_ID,
       scheduledStart: new Date(Date.now() + 10 * 60 * 1000),
       scheduledEnd: new Date(Date.now() + 6 * 60 * 60 * 1000),
       participants: [
-        { fullName: 'David Vance', email: 'dvance@tesla.com', phone: '+1-512-001', isLead: true },
-        { fullName: 'Sophia Lin', email: 'slin@tesla.com', phone: '+1-512-002', isLead: false },
-        { fullName: 'Liam Connor', email: 'lconnor@tesla.com', phone: '+1-512-003', isLead: false },
+        { fullName: 'David Vance', email: 'dvance@voltaris.com', phone: '+1-512-001', isLead: true },
+        { fullName: 'Sophia Lin', email: 'slin@voltaris.com', phone: '+1-512-002', isLead: false },
+        { fullName: 'Liam Connor', email: 'lconnor@voltaris.com', phone: '+1-512-003', isLead: false },
       ],
       transport: {
         mode: 'CAR',

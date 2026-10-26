@@ -65,7 +65,7 @@ export const SecurityDashboardView: React.FC = () => {
                 <div style={{ width: '10px', height: '10px', borderRadius: radius.full, backgroundColor: colors.status.success.solid }} />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <strong style={{ fontSize: typography.fontSize.xs.size }}>Gate 1 — Pedestrian Turnstile #1A</strong>
-                  <span style={{ fontSize: '11px', color: colors.slate[500] }}>Passage: Aravind S. (Siemens) • Inbound</span>
+                  <span style={{ fontSize: '11px', color: colors.slate[500] }}>Passage: Aravind S. (Sievert) • Inbound</span>
                 </div>
               </div>
               <StatusBadge status="approved" size="micro" />
@@ -133,7 +133,7 @@ export const SecurityDashboardView: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: colors.status.overdue.bg, border: `1px solid ${colors.status.overdue.border}`, borderRadius: radius.sm }}>
               <div>
                 <strong style={{ fontSize: typography.fontSize.xs.size, color: colors.status.overdue.fg }}>
-                  Karthik Raja (L&T Construction)
+                  Karthik Raja (LKT Construction)
                 </strong>
                 <div style={{ fontSize: '11px', color: colors.slate[600] }}>
                   Scheduled Exit: 12:00 PM • Overstayed: <strong>+4h 25m</strong>

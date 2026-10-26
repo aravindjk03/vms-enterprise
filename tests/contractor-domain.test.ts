@@ -55,8 +55,8 @@ describe('Part 8: Complete Contractor Management Domain Verification', () => {
   it('1. creates contractor company, resolves canonical external org, and rejects duplicates', async () => {
     const input: CreateContractorCompanyInput = {
       tenantId: TENANT_A,
-      companyName: 'L&T Industrial Piping Ltd',
-      tradeName: 'L&T Piping',
+      companyName: 'LKT Industrial Piping Ltd',
+      tradeName: 'LKT Piping',
       vendorCode: 'VND-LT-001',
       registrationNumber: 'CIN-U12345TN2010PLC',
       contractorClassification: 'TIER_1_GENERAL',
@@ -81,7 +81,7 @@ describe('Part 8: Complete Contractor Management Domain Verification', () => {
     assert.ok(company.externalOrgId);
     const org = db.findById('external_organizations', company.externalOrgId, TENANT_A);
     assert.ok(org);
-    assert.strictEqual(org.name, 'L&T Industrial Piping Ltd');
+    assert.strictEqual(org.name, 'LKT Industrial Piping Ltd');
 
     // Duplicate detection by vendorCode
     await assert.rejects(
@@ -100,7 +100,7 @@ describe('Part 8: Complete Contractor Management Domain Verification', () => {
       async () => {
         await service.createContractorCompany({
           tenantId: TENANT_A,
-          companyName: 'L&T Industrial Piping Ltd',
+          companyName: 'LKT Industrial Piping Ltd',
           vendorCode: 'VND-NEW-999',
         });
       },
@@ -135,7 +135,7 @@ describe('Part 8: Complete Contractor Management Domain Verification', () => {
   it('3. manages contract lifecycle, supports multiple contracts per company, and handles renewal', async () => {
     const company = await service.createContractorCompany({
       tenantId: TENANT_A,
-      companyName: 'Thermax Boiler Maintenance',
+      companyName: 'Thermora Boiler Maintenance',
       vendorCode: 'VND-THX-003',
     });
 
@@ -210,7 +210,7 @@ describe('Part 8: Complete Contractor Management Domain Verification', () => {
   it('4. executes complete work order workflow: create, submit, approve, and enforces contract constraints', async () => {
     const company = await service.createContractorCompany({
       tenantId: TENANT_A,
-      companyName: 'Siemens Energy Services',
+      companyName: 'Sievert Energy Services',
       vendorCode: 'VND-SMS-004',
     });
 
@@ -829,7 +829,7 @@ describe('Part 8: Complete Contractor Management Domain Verification', () => {
   it('10. handles group transport deduplication (shared bus) and enforces Zero-Blocker Invariant for GHG capture', async () => {
     const company = await service.createContractorCompany({
       tenantId: TENANT_A,
-      companyName: 'Ashok Leyland Site Services',
+      companyName: 'Ashvin Leyton Site Services',
       vendorCode: 'VND-ALL-011',
     });
 

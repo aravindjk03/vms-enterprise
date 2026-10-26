@@ -224,8 +224,8 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
   {
     id: 'acc-cust-001',
     accountCode: 'CUS-ACC-TSLA',
-    legalName: 'Tesla Motors Global Powertrain Inc.',
-    tradeName: 'Tesla Inc.',
+    legalName: 'Voltaris Motors Global Powertrain Inc.',
+    tradeName: 'Voltaris Inc.',
     classification: 'OEM_CUSTOMER',
     accountTier: 'GLOBAL_ENTERPRISE',
     status: 'ACTIVE',
@@ -237,14 +237,14 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 2,
     totalVisitsCount: 18,
     contactPerson: 'David Vance',
-    contactEmail: 'dvance@tesla.example',
+    contactEmail: 'dvance@voltaris.example',
     contactPhone: '+1-512-555-0199',
   },
   {
     id: 'acc-cust-002',
     accountCode: 'CUS-ACC-TYTA',
-    legalName: 'Toyota Motor Manufacturing Asia Pte Ltd',
-    tradeName: 'Toyota Asia',
+    legalName: 'Kintaro Motor Manufacturing Asia Pte Ltd',
+    tradeName: 'Kintaro Asia',
     classification: 'OEM_CUSTOMER',
     accountTier: 'GLOBAL_ENTERPRISE',
     status: 'ACTIVE',
@@ -256,20 +256,20 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 1,
     totalVisitsCount: 24,
     contactPerson: 'Kenji Takahashi',
-    contactEmail: 'kenji.takahashi@toyota-asia.example',
+    contactEmail: 'kenji.takahashi@kintaro-asia.example',
     contactPhone: '+65-6888-9120',
   },
   {
     id: 'acc-cust-003',
-    accountCode: 'CUS-ACC-BMW',
-    legalName: 'Bayerische Motoren Werke AG (BMW)',
-    tradeName: 'BMW Group',
+    accountCode: 'CUS-ACC-Bavaro',
+    legalName: 'Bayerische Motoren Werke AG (Bavaro)',
+    tradeName: 'Bavaro Group',
     classification: 'STRATEGIC_CUSTOMER',
     accountTier: 'TIER_1_STRATEGIC',
     status: 'ACTIVE',
     assignedAccountManager: 'Ananya Sharma (Senior Director Key Accounts)',
     ndaStatus: 'ACTIVE',
-    ndaAgreementNumber: 'NDA-2025-BMW-4192',
+    ndaAgreementNumber: 'NDA-2025-Bavaro-4192',
     ndaExpiryDate: '2028-06-30',
     photographyPolicy: 'PROHIBITED',
     activeVisitsCount: 1,
@@ -280,9 +280,9 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
   },
   {
     id: 'acc-cust-004',
-    accountCode: 'CUS-ACC-BOSCH',
-    legalName: 'Robert Bosch Engineering and Mobility GmbH',
-    tradeName: 'Bosch Mobility',
+    accountCode: 'CUS-ACC-BRANNICK',
+    legalName: 'Robert Brannick Engineering and Mobility GmbH',
+    tradeName: 'Brannick Mobility',
     classification: 'QUALITY_CUSTOMER',
     accountTier: 'KEY_ACCOUNT',
     status: 'ACTIVE',
@@ -294,14 +294,14 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 1,
     totalVisitsCount: 31,
     contactPerson: 'Elena Rostova',
-    contactEmail: 'elena.rostova@bosch.example',
+    contactEmail: 'elena.rostova@brannick.example',
     contactPhone: '+49-711-811-0',
   },
   {
     id: 'acc-cust-005',
     accountCode: 'CUS-ACC-CUMN',
-    legalName: 'Cummins India Heavy Power Technologies Ltd',
-    tradeName: 'Cummins India',
+    legalName: 'Cumberland India Heavy Power Technologies Ltd',
+    tradeName: 'Cumberland India',
     classification: 'EXISTING_CUSTOMER',
     accountTier: 'STANDARD',
     status: 'ACTIVE',
@@ -313,7 +313,7 @@ const INITIAL_ACCOUNTS: CustomerAccountItem[] = [
     activeVisitsCount: 0,
     totalVisitsCount: 9,
     contactPerson: 'Arun Deshmukh',
-    contactEmail: 'arun.deshmukh@cummins.example',
+    contactEmail: 'arun.deshmukh@cumberland.example',
     contactPhone: '+91-20-6706-0000',
   },
 ];
@@ -323,11 +323,11 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
   {
     id: 'rep-001',
     accountId: 'acc-cust-001',
-    accountName: 'Tesla Motors Global Powertrain Inc.',
-    canonicalPersonId: 'prs-tesla-01',
+    accountName: 'Voltaris Motors Global Powertrain Inc.',
+    canonicalPersonId: 'prs-voltaris-01',
     fullName: 'David Vance',
     phone: '+1-512-555-0199',
-    email: 'dvance@tesla.example',
+    email: 'dvance@voltaris.example',
     designation: 'Director of Global Supplier Quality',
     department: 'Supply Chain Operations',
     isVip: true,
@@ -337,11 +337,11 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
   {
     id: 'rep-002',
     accountId: 'acc-cust-001',
-    accountName: 'Tesla Motors Global Powertrain Inc.',
-    canonicalPersonId: 'prs-tesla-02',
+    accountName: 'Voltaris Motors Global Powertrain Inc.',
+    canonicalPersonId: 'prs-voltaris-02',
     fullName: 'Sophia Lin',
     phone: '+1-512-555-0244',
-    email: 'slin@tesla.example',
+    email: 'slin@voltaris.example',
     designation: 'Senior Powertrain Battery Engineer',
     department: 'Engineering Quality',
     isVip: false,
@@ -351,11 +351,11 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
   {
     id: 'rep-003',
     accountId: 'acc-cust-002',
-    accountName: 'Toyota Motor Manufacturing Asia Pte Ltd',
+    accountName: 'Kintaro Motor Manufacturing Asia Pte Ltd',
     canonicalPersonId: 'prs-tyta-01',
     fullName: 'Kenji Takahashi',
     phone: '+65-6888-9120',
-    email: 'kenji.takahashi@toyota-asia.example',
+    email: 'kenji.takahashi@kintaro-asia.example',
     designation: 'Chief Engineer — TPS Audit Division',
     department: 'Quality Assurance',
     isVip: true,
@@ -365,8 +365,8 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
   {
     id: 'rep-004',
     accountId: 'acc-cust-003',
-    accountName: 'Bayerische Motoren Werke AG (BMW)',
-    canonicalPersonId: 'prs-bmw-01',
+    accountName: 'Bayerische Motoren Werke AG (Bavaro)',
+    canonicalPersonId: 'prs-bavaro-01',
     fullName: 'Marcus Weber',
     phone: '+49-89-382-019',
     email: 'marcus.weber@bmwgroup.example',
@@ -379,11 +379,11 @@ const INITIAL_REPRESENTATIVES: CustomerRepresentativeItem[] = [
   {
     id: 'rep-005',
     accountId: 'acc-cust-004',
-    accountName: 'Robert Bosch Engineering and Mobility GmbH',
+    accountName: 'Robert Brannick Engineering and Mobility GmbH',
     canonicalPersonId: 'prs-bsch-01',
     fullName: 'Elena Rostova',
     phone: '+49-711-811-0',
-    email: 'elena.rostova@bosch.example',
+    email: 'elena.rostova@brannick.example',
     designation: 'Lead Auditor — VDA 6.3 Process Audit',
     department: 'Quality Compliance',
     isVip: false,
@@ -398,14 +398,14 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     id: 'tx-cus-101',
     referenceNumber: 'CUS-2026-000101',
     accountId: 'acc-cust-001',
-    accountName: 'Tesla Motors Global Powertrain Inc.',
+    accountName: 'Voltaris Motors Global Powertrain Inc.',
     classification: 'OEM_CUSTOMER',
     visitTypeCode: 'CUSTOMER_AUDIT',
     bookingMode: 'RESERVED',
     leadParticipantName: 'David Vance',
     participants: [
-      { id: 'p-1', name: 'David Vance', email: 'dvance@tesla.example', phone: '+1-512-555-0199', designation: 'Director Global Quality', isLead: true, status: 'INSIDE', gatePassNumber: 'GP-CUS-101-01', checkInTime: '2026-10-11T09:15:00Z' },
-      { id: 'p-2', name: 'Sophia Lin', email: 'slin@tesla.example', phone: '+1-512-555-0244', designation: 'Sr Battery Engineer', isLead: false, status: 'INSIDE', gatePassNumber: 'GP-CUS-101-02', checkInTime: '2026-10-11T09:15:00Z' },
+      { id: 'p-1', name: 'David Vance', email: 'dvance@voltaris.example', phone: '+1-512-555-0199', designation: 'Director Global Quality', isLead: true, status: 'INSIDE', gatePassNumber: 'GP-CUS-101-01', checkInTime: '2026-10-11T09:15:00Z' },
+      { id: 'p-2', name: 'Sophia Lin', email: 'slin@voltaris.example', phone: '+1-512-555-0244', designation: 'Sr Battery Engineer', isLead: false, status: 'INSIDE', gatePassNumber: 'GP-CUS-101-02', checkInTime: '2026-10-11T09:15:00Z' },
     ],
     hostUserId: 'usr-host-1',
     hostName: 'Vikram Mehta (VP OEM Accounts)',
@@ -423,11 +423,11 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     ndaAgreementNumber: 'NDA-2025-TSLA-0881',
     escortRequired: true,
     photographyPolicy: 'PROHIBITED',
-    agenda: 'Annual Q4 IATF 16949 / Tesla Specific Supplier Quality Audit for Model Y high-voltage harnesses',
+    agenda: 'Annual Q4 IATF 16949 / Voltaris Specific Supplier Quality Audit for Model Y high-voltage harnesses',
     auditDetails: {
       auditType: 'IATF_16949_CUSTOMER_SPECIFIC',
       auditScope: 'Automated crimping line, ultrasonic welding cells, and traceability barcode laser stations',
-      leadAuditor: 'David Vance (Tesla)',
+      leadAuditor: 'David Vance (Voltaris)',
       findingsCount: 0,
       closureStatus: 'AUDIT_IN_PROGRESS',
     },
@@ -457,15 +457,15 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     id: 'tx-cus-102',
     referenceNumber: 'CUS-2026-000102',
     accountId: 'acc-cust-002',
-    accountName: 'Toyota Motor Manufacturing Asia Pte Ltd',
+    accountName: 'Kintaro Motor Manufacturing Asia Pte Ltd',
     classification: 'OEM_CUSTOMER',
     visitTypeCode: 'DELEGATION_VISIT',
     bookingMode: 'DELEGATION',
     leadParticipantName: 'Kenji Takahashi',
     participants: [
-      { id: 'p-3', name: 'Kenji Takahashi', email: 'kenji.takahashi@toyota-asia.example', phone: '+65-6888-9120', designation: 'Chief Engineer', isLead: true, status: 'INSIDE', gatePassNumber: 'GP-CUS-102-01', checkInTime: '2026-10-11T10:05:00Z' },
-      { id: 'p-4', name: 'Hiroshi Sato', email: 'hsato@toyota-asia.example', phone: '+65-6888-9121', designation: 'TPS Specialist', isLead: false, status: 'INSIDE', gatePassNumber: 'GP-CUS-102-02', checkInTime: '2026-10-11T10:05:00Z' },
-      { id: 'p-5', name: 'Naveen Ramaswamy', email: 'naveen.r@toyota-india.example', phone: '+91-9840112999', designation: 'Regional Procurement Head', isLead: false, status: 'ARRIVED', gatePassNumber: 'GP-CUS-102-03' },
+      { id: 'p-3', name: 'Kenji Takahashi', email: 'kenji.takahashi@kintaro-asia.example', phone: '+65-6888-9120', designation: 'Chief Engineer', isLead: true, status: 'INSIDE', gatePassNumber: 'GP-CUS-102-01', checkInTime: '2026-10-11T10:05:00Z' },
+      { id: 'p-4', name: 'Hiroshi Sato', email: 'hsato@kintaro-asia.example', phone: '+65-6888-9121', designation: 'TPS Specialist', isLead: false, status: 'INSIDE', gatePassNumber: 'GP-CUS-102-02', checkInTime: '2026-10-11T10:05:00Z' },
+      { id: 'p-5', name: 'Naveen Ramaswamy', email: 'naveen.r@kintaro-india.example', phone: '+91-9840112999', designation: 'Regional Procurement Head', isLead: false, status: 'ARRIVED', gatePassNumber: 'GP-CUS-102-03' },
     ],
     hostUserId: 'usr-host-2',
     hostName: 'Suresh Babu (VP Operations)',
@@ -483,7 +483,7 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     ndaAgreementNumber: 'NDA-2024-TYTA-0019',
     escortRequired: true,
     photographyPolicy: 'RESTRICTED',
-    agenda: 'Toyota Production System (TPS) benchmarking delegation and line qualification review for new SUV platform components',
+    agenda: 'Kintaro Production System (TPS) benchmarking delegation and line qualification review for new SUV platform components',
     transport: {
       mode: 'BUS',
       vehicleClass: 'MINIBUS',
@@ -510,13 +510,13 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     id: 'tx-cus-103',
     referenceNumber: 'CUS-2026-000103',
     accountId: 'acc-cust-004',
-    accountName: 'Robert Bosch Engineering and Mobility GmbH',
+    accountName: 'Robert Brannick Engineering and Mobility GmbH',
     classification: 'QUALITY_CUSTOMER',
     visitTypeCode: 'CUSTOMER_INSPECTION',
     bookingMode: 'RESERVED',
     leadParticipantName: 'Elena Rostova',
     participants: [
-      { id: 'p-6', name: 'Elena Rostova', email: 'elena.rostova@bosch.example', phone: '+49-711-811-0', designation: 'Lead Auditor', isLead: true, status: 'SCHEDULED' },
+      { id: 'p-6', name: 'Elena Rostova', email: 'elena.rostova@brannick.example', phone: '+49-711-811-0', designation: 'Lead Auditor', isLead: true, status: 'SCHEDULED' },
     ],
     hostUserId: 'usr-host-3',
     hostName: 'Karthik Raja (Account Lead)',
@@ -563,7 +563,7 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     id: 'tx-cus-104',
     referenceNumber: 'CUS-2026-000104',
     accountId: 'acc-cust-003',
-    accountName: 'Bayerische Motoren Werke AG (BMW)',
+    accountName: 'Bayerische Motoren Werke AG (Bavaro)',
     classification: 'STRATEGIC_CUSTOMER',
     visitTypeCode: 'QUALITY_VISIT',
     bookingMode: 'RESERVED',
@@ -582,7 +582,7 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     presenceStatus: 'SCHEDULED',
     authorizedZones: ['Executive Briefing Center', 'Chassis Prototype Bay'],
     ndaVerified: true,
-    ndaAgreementNumber: 'NDA-2025-BMW-4192',
+    ndaAgreementNumber: 'NDA-2025-Bavaro-4192',
     escortRequired: true,
     photographyPolicy: 'PROHIBITED',
     agenda: 'PPAP Level 4 signoff review for lightweight radial alloy rims and carbon-neutral production verification',
@@ -611,13 +611,13 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     id: 'tx-cus-105',
     referenceNumber: 'CUS-2026-000105',
     accountId: 'acc-cust-001',
-    accountName: 'Tesla Motors Global Powertrain Inc.',
+    accountName: 'Voltaris Motors Global Powertrain Inc.',
     classification: 'OEM_CUSTOMER',
     visitTypeCode: 'TECHNICAL_VISIT',
     bookingMode: 'RESERVED',
     leadParticipantName: 'Liam O’Connor',
     participants: [
-      { id: 'p-8', name: 'Liam O’Connor', email: 'loconnor@tesla.example', phone: '+1-512-555-0988', designation: 'Robotics Integration Specialist', isLead: true, status: 'CHECKED_OUT', gatePassNumber: 'GP-CUS-105-01', checkInTime: '2026-10-10T08:30:00Z', checkOutTime: '2026-10-10T16:45:00Z' },
+      { id: 'p-8', name: 'Liam O’Connor', email: 'loconnor@voltaris.example', phone: '+1-512-555-0988', designation: 'Robotics Integration Specialist', isLead: true, status: 'CHECKED_OUT', gatePassNumber: 'GP-CUS-105-01', checkInTime: '2026-10-10T08:30:00Z', checkOutTime: '2026-10-10T16:45:00Z' },
     ],
     hostUserId: 'usr-host-1',
     hostName: 'Vikram Mehta (VP OEM Accounts)',
@@ -668,13 +668,13 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     id: 'tx-cus-106',
     referenceNumber: 'CUS-2026-000106',
     accountId: 'acc-cust-005',
-    accountName: 'Cummins India Heavy Power Technologies Ltd',
+    accountName: 'Cumberland India Heavy Power Technologies Ltd',
     classification: 'EXISTING_CUSTOMER',
     visitTypeCode: 'CUSTOMER_MEETING',
     bookingMode: 'RESERVED',
     leadParticipantName: 'Arun Deshmukh',
     participants: [
-      { id: 'p-9', name: 'Arun Deshmukh', email: 'arun.deshmukh@cummins.example', phone: '+91-20-6706-0000', designation: 'Senior Supply Manager', isLead: true, status: 'SCHEDULED' },
+      { id: 'p-9', name: 'Arun Deshmukh', email: 'arun.deshmukh@cumberland.example', phone: '+91-20-6706-0000', designation: 'Senior Supply Manager', isLead: true, status: 'SCHEDULED' },
     ],
     hostUserId: 'usr-host-5',
     hostName: 'Rajesh Varma (Commercial Manager)',
@@ -719,13 +719,13 @@ const INITIAL_VISITS: CustomerVisitItem[] = [
     id: 'tx-cus-107',
     referenceNumber: 'CUS-2026-000107',
     accountId: 'acc-cust-002',
-    accountName: 'Toyota Motor Manufacturing Asia Pte Ltd',
+    accountName: 'Kintaro Motor Manufacturing Asia Pte Ltd',
     classification: 'OEM_CUSTOMER',
     visitTypeCode: 'PLANT_VISIT',
     bookingMode: 'RESERVED',
     leadParticipantName: 'Yuki Matsui',
     participants: [
-      { id: 'p-10', name: 'Yuki Matsui', email: 'ymatsui@toyota-asia.example', phone: '+65-6888-9188', designation: 'Plant Safety Director', isLead: true, status: 'SCHEDULED' },
+      { id: 'p-10', name: 'Yuki Matsui', email: 'ymatsui@kintaro-asia.example', phone: '+65-6888-9188', designation: 'Plant Safety Director', isLead: true, status: 'SCHEDULED' },
     ],
     hostUserId: 'usr-host-2',
     hostName: 'Suresh Babu (VP Operations)',
@@ -2468,7 +2468,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                 time: '10:05 UTC',
                 date: '2026-10-11',
                 title: 'Partial Delegation Arrival Check-in',
-                description: '2 of 3 delegates from Toyota Asia arrived via Minibus TN-07-CNG-8812. Gate passes issued.',
+                description: '2 of 3 delegates from Kintaro Asia arrived via Minibus TN-07-CNG-8812. Gate passes issued.',
                 actor: 'Gate Guard #02',
                 status: 'COMPLETED',
                 iconType: 'GATE_ENTRY',
@@ -2477,7 +2477,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                 id: 'evt-2',
                 time: '09:15 UTC',
                 date: '2026-10-11',
-                title: 'Tesla IATF Audit Team Checked In',
+                title: 'Voltaris IATF Audit Team Checked In',
                 description: 'David Vance & Sophia Lin cleared Gate 1. Bilateral NDA verified against master vault.',
                 actor: 'Receptionist REC-01',
                 status: 'COMPLETED',
@@ -2488,7 +2488,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                 time: '16:45 UTC',
                 date: '2026-10-10',
                 title: 'Technical Visit Closed With Engineering Signoff',
-                description: 'Liam O’Connor (Tesla) departure logged. Robot balancer firmware calibration report filed.',
+                description: 'Liam O’Connor (Voltaris) departure logged. Robot balancer firmware calibration report filed.',
                 actor: 'Vikram Mehta (VP Accounts)',
                 status: 'COMPLETED',
                 iconType: 'DOCUMENT',
@@ -2498,7 +2498,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                 time: '14:00 UTC',
                 date: '2026-10-09',
                 title: 'Customer Plant Walkthrough Cancelled',
-                description: 'Toyota safety director travel delayed due to typhoon warning. Visit marked NO_SHOW.',
+                description: 'Kintaro safety director travel delayed due to typhoon warning. Visit marked NO_SHOW.',
                 actor: 'Host Automation',
                 status: 'ALERT',
                 iconType: 'ALERT',
@@ -2831,7 +2831,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                   required
                   value={accountLegalName}
                   onChange={e => setAccountLegalName(e.target.value)}
-                  placeholder="e.g. Ford Motor Company"
+                  placeholder="e.g. Ardent Motor Company"
                   className="w-full text-xs p-2 border border-slate-200 rounded mt-1"
                 />
               </div>
@@ -2841,7 +2841,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                   type="text"
                   value={accountTradeName}
                   onChange={e => setAccountTradeName(e.target.value)}
-                  placeholder="e.g. Ford"
+                  placeholder="e.g. Ardent"
                   className="w-full text-xs p-2 border border-slate-200 rounded mt-1"
                 />
               </div>
@@ -2852,7 +2852,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                   required
                   value={accountCode}
                   onChange={e => setAccountCode(e.target.value)}
-                  placeholder="CUS-ACC-FORD"
+                  placeholder="CUS-ACC-ARDENT"
                   className="w-full text-xs p-2 border border-slate-200 rounded mt-1 font-mono uppercase"
                 />
               </div>
@@ -2908,7 +2908,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                   type="email"
                   value={accountEmail}
                   onChange={e => setAccountEmail(e.target.value)}
-                  placeholder="sjenkins@ford.example"
+                  placeholder="sjenkins@ardent.example"
                   className="w-full text-xs p-2 border border-slate-200 rounded mt-1"
                 />
               </div>
@@ -2919,7 +2919,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
                   required
                   value={accountNdaNumber}
                   onChange={e => setAccountNdaNumber(e.target.value)}
-                  placeholder="NDA-2026-FORD-01"
+                  placeholder="NDA-2026-ARDENT-01"
                   className="w-full text-xs p-2 border border-slate-200 rounded mt-1 font-mono uppercase"
                 />
               </div>

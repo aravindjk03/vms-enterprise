@@ -2,7 +2,7 @@
 
 ## 1. Overview & Delegation Model
 
-Customer delegations are multi-person official visits from executive clients or technical consortiums (e.g., 5 Toyota engineers arriving together for an executive line walk). 
+Customer delegations are multi-person official visits from executive clients or technical consortiums (e.g., 5 Kintaro engineers arriving together for an executive line walk). 
 
 ### 1.1 Structural Characteristics
 - **Single Parent Transaction:** One `customer_visit_transactions` record holds overall appointment metadata, commercial owner, and ESG Scope 3 travel data.

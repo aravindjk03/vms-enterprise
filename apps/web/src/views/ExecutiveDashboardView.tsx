@@ -170,7 +170,7 @@ export const ExecutiveDashboardView: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', backgroundColor: colors.slate[50], borderRadius: radius.sm }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <strong style={{ fontSize: typography.fontSize.xs.size, color: colors.slate[900] }}>
-                  CUST-2026-0089: Mercedes Delegation
+                  CUST-2026-0089: Meridian Delegation
                 </strong>
                 <span style={{ fontSize: '11px', color: colors.slate[500] }}>Awaiting Plant Director sign-off</span>
               </div>

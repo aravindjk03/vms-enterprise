@@ -24,8 +24,8 @@ test('Part 7: Customer Management View & SSR Rendering Verification', async (t) 
     const html = renderToString(React.createElement(CustomerManagementView, { initialSubView: 'ACCOUNTS' }));
     assert.ok(html.includes('Enterprise Customer Accounts'));
     assert.ok(html.includes('CUS-ACC-TSLA'));
-    assert.ok(html.includes('Tesla Motors Global Powertrain Inc.'));
-    assert.ok(html.includes('Toyota Motor Manufacturing Asia'));
+    assert.ok(html.includes('Voltaris Motors Global Powertrain Inc.'));
+    assert.ok(html.includes('Kintaro Motor Manufacturing Asia'));
     assert.ok(html.includes('GLOBAL_ENTERPRISE'));
     assert.ok(html.includes('Bilateral NDA'));
   });
@@ -92,7 +92,7 @@ test('Part 7: Customer Management View & SSR Rendering Verification', async (t) 
     const html = renderToString(React.createElement(CustomerManagementView, { initialSubView: 'HISTORY' }));
     assert.ok(html.includes('Customer Domain Audit &amp; Historical Lifecycle Ledger') || html.includes('Customer Domain Audit & Historical Lifecycle Ledger'));
     assert.ok(html.includes('Partial Delegation Arrival Check-in'));
-    assert.ok(html.includes('Tesla IATF Audit Team Checked In'));
+    assert.ok(html.includes('Voltaris IATF Audit Team Checked In'));
   });
 
   await t.test('10. App component routes /customers to CustomerManagementView', () => {

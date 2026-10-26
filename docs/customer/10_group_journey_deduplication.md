@@ -2,7 +2,7 @@
 
 ## 1. The Carbon Multiplier Fallacy in Enterprise Transport
 
-In legacy visitor and ESG tracking systems, transport activities are naively captured on a per-visitor basis. When an 8-person executive customer delegation arrives at a manufacturing plant in a single chartered Mercedes Sprinter van travelling 50 km from the airport, a per-person recording architecture produces:
+In legacy visitor and ESG tracking systems, transport activities are naively captured on a per-visitor basis. When an 8-person executive customer delegation arrives at a manufacturing plant in a single chartered Meridian Sprinter van travelling 50 km from the airport, a per-person recording architecture produces:
 $$8 \text{ participants} \times 50\text{ km} = 400\text{ vehicle-km}$$
 
 This creates a **$8\times$ artificial inflation** of the tenant's Scope 3 Category 6 greenhouse gas ledger, corrupting sustainability reporting and failing third-party GHG Protocol audits.

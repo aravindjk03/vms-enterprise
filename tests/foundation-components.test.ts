@@ -165,7 +165,7 @@ test('Data & Domain Components Verification', async (t) => {
   await t.test('renders CompanyCard with vendor code and compliance metrics', () => {
     const html = renderToString(
       React.createElement(CompanyCard, {
-        name: 'Thermax Heavy Engineering',
+        name: 'Thermora Heavy Engineering',
         vendorCode: 'VND-8821',
         tradeCategory: 'Boiler Overhaul Contractor',
         status: 'active',
@@ -175,7 +175,7 @@ test('Data & Domain Components Verification', async (t) => {
         contactPerson: 'Arun Varma',
       })
     );
-    assert.ok(html.includes('Thermax Heavy Engineering'));
+    assert.ok(html.includes('Thermora Heavy Engineering'));
     assert.ok(html.includes('VND-8821'));
     assert.ok(html.includes('98%'));
     assert.ok(html.includes('Arun Varma'));
@@ -242,7 +242,7 @@ test('Operational Components & Offline Framework Verification', async (t) => {
       React.createElement(EntityDetailPage, {
         entityId: 'VIS-2026-00182',
         title: 'Aravind Swaminathan',
-        subtitle: 'Siemens Industrial Automation',
+        subtitle: 'Sievert Industrial Automation',
         status: 'active',
         entityType: 'VISITOR',
         onBack: () => {},

@@ -15,7 +15,7 @@ The following diagram details the complete bidirectional provenance chain connec
 ```mermaid
 flowchart TD
     subgraph "1. Operational Visit Layer"
-        CV[Customer Visit Transaction<br/>Ref: CUS-2026-003001<br/>Account: Tesla Motors Inc<br/>Site: Chennai Plant 1]
+        CV[Customer Visit Transaction<br/>Ref: CUS-2026-003001<br/>Account: Voltaris Motors Inc<br/>Site: Chennai Plant 1]
         TR[Transport Details Captured in Form:<br/>Mode: CAR, Fuel: ELECTRIC, Distance: 42 km]
     end
 

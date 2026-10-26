@@ -32,7 +32,7 @@ export const GateModeView: React.FC = () => {
         identifier: 'VIS-2026-00182',
         name: 'Aravind Swaminathan',
         domain: 'VISITOR',
-        company: 'Siemens Industrial Automation',
+        company: 'Sievert Industrial Automation',
         passValid: true,
         inductionValid: true,
         zoneAuthorized: true,

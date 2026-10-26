@@ -297,7 +297,7 @@ export const KioskWelcomeView: React.FC<{ onExitKiosk?: () => void }> = ({ onExi
           />
           <Input
             label="Company / Organization"
-            placeholder="e.g. Tata Consultancy Services"
+            placeholder="e.g. Taravel Consulting Services"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
           />

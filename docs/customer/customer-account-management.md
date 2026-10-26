@@ -39,7 +39,7 @@ To prevent multiple sales or quality teams from fragmenting customer master data
 
 If a probable duplicate is detected, the operation rejects with:
 ```
-Customer account 'TSLA-01' already exists (Probable duplicate detected matching 'Tesla Inc.')
+Customer account 'TSLA-01' already exists (Probable duplicate detected matching 'Voltaris Inc.')
 ```
 
 ---

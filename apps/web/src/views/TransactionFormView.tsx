@@ -43,8 +43,8 @@ export const TransactionFormView: React.FC<{
 
   // Operational Form State (Visitor Pre-Registration Demo)
   const [visitorName, setVisitorName] = useState('Aravind Swaminathan');
-  const [visitorCompany, setVisitorCompany] = useState('Siemens Industrial Automation');
-  const [visitorEmail, setVisitorEmail] = useState('aravind.s@siemens.example');
+  const [visitorCompany, setVisitorCompany] = useState('Sievert Industrial Automation');
+  const [visitorEmail, setVisitorEmail] = useState('aravind.s@sievert.example');
   const [visitorPhone, setVisitorPhone] = useState('+91 98401 23456');
   const [purpose, setPurpose] = useState('PLC Diagnostic & SCADA Upgrade');
   const [hostUserId, setHostUserId] = useState('Vikram Mehta (Plant Lead - Ext: 4102)');
@@ -58,12 +58,12 @@ export const TransactionFormView: React.FC<{
     vehicleClass: 'SEDAN',
     fuelType: 'DIESEL',
     occupancy: 2,
-    originLocation: 'Siemens Regional Campus, Bengaluru',
+    originLocation: 'Sievert Regional Campus, Bengaluru',
     destinationLocation: 'Northwind Chennai Plant Gate 1',
     distanceKm: 348,
     distanceProvenance: 'SYSTEM_ESTIMATED',
     journeyType: 'ROUND_TRIP',
-    fuelProvenance: 'From Siemens Corporate Fleet Profile',
+    fuelProvenance: 'From Sievert Corporate Fleet Profile',
   });
 
   const handleSaveDraft = () => {

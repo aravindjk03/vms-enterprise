@@ -174,7 +174,7 @@ const INITIAL_COMPANIES = [
     activeWorkOrdersCount: 2,
     assignedWorkersCount: 18,
     compliancePassRate: 94.5,
-    insurancePolicyNumber: 'POL-BAJAJ-2026-4433',
+    insurancePolicyNumber: 'POL-BALRAJ-2026-4433',
     insuranceExpiryDate: '2026-10-15',
   },
   {

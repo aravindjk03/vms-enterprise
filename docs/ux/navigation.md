@@ -76,7 +76,7 @@ The context switcher is located prominently in the Top Bar and follows the hiera
 `Organization` $\rightarrow$ `Site` $\rightarrow$ `Gate` $\rightarrow$ `Zone`
 
 ### Multi-Site Selection Rules:
-1. **Single Site Assigned (e.g., Security Guard):** Pinned to the home site (e.g. `MRF -> Chennai Plant -> Gate 1`). The dropdown is locked or displays site details in read-only mode.
+1. **Single Site Assigned (e.g., Security Guard):** Pinned to the home site (e.g. `Northwind -> Chennai Plant -> Gate 1`). The dropdown is locked or displays site details in read-only mode.
 2. **Multi-Site Assigned (e.g., Regional EHS Manager):** Fast switcher filtered to authorized sites.
 3. **Enterprise-Wide (e.g., Management / Super Admin):** Option for `All Sites (Enterprise Roll-up)` alongside individual site drill-downs.
 
