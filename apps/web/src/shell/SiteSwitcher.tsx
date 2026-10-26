@@ -39,6 +39,7 @@ export const SiteSwitcher: React.FC<{ sites: SiteOption[]; currentSiteId: string
         aria-expanded={many ? open : undefined}
         disabled={!many}
         onClick={() => setOpen(!open)}
+        className="vms-site-switcher"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -57,8 +58,12 @@ export const SiteSwitcher: React.FC<{ sites: SiteOption[]; currentSiteId: string
         }}
       >
         <Building2 size={16} color={colors.primary[600]} style={{ flexShrink: 0 }} />
-        {!compact && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.siteName}</span>}
-        {!compact && many && <ChevronDown size={15} color={colors.slate[500]} style={{ flexShrink: 0 }} />}
+        {!compact && (
+          <span className="vms-site-label" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {current.siteName}
+          </span>
+        )}
+        {!compact && many && <ChevronDown className="vms-site-label" size={15} color={colors.slate[500]} style={{ flexShrink: 0 }} />}
       </button>
       {open && (
         <ul

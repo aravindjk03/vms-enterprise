@@ -7,6 +7,7 @@ import { PageHeader, useApi } from '../LiveViews.js';
 import {
   BackLink,
   buttonStyle,
+  card,
   can,
   ErrorNote,
   FormGrid,
@@ -100,22 +101,32 @@ export const ServiceDashboard: React.FC<{ go: (route: string) => void }> = ({ go
         }
       />
       <ErrorNote error={error} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(170px, 100%), 1fr))', gap: '12px', marginBottom: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(168px, 100%), 1fr))', gap: '14px', marginBottom: '20px' }}>
         {tiles.map(([title, key, route]) => (
           <button
             key={key}
             type="button"
+            className="vms-card-link"
             onClick={() => go(route)}
-            style={{ textAlign: 'left', border: `1px solid ${colors.slate[200]}`, borderRadius: radius.lg, padding: '14px', backgroundColor: '#fff', cursor: 'pointer' }}
+            style={{ ...card, textAlign: 'left', padding: '16px 18px', cursor: 'pointer', font: 'inherit' }}
           >
-            <div style={{ fontSize: '11px', fontWeight: 600, color: colors.slate[500], textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</div>
-            <div style={{ fontSize: '26px', fontWeight: 800, color: key === 'overdueWork' && data && data.overdueWork > 0 ? colors.status.danger.fg : colors.slate[900], fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{ fontSize: '13px', fontWeight: 500, color: colors.slate[600] }}>{title}</div>
+            <div
+              style={{
+                fontSize: '28px',
+                lineHeight: '36px',
+                marginTop: '6px',
+                fontWeight: 700,
+                color: key === 'overdueWork' && data && data.overdueWork > 0 ? colors.status.danger.fg : colors.slate[900],
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
               {data ? String(data[key]) : '—'}
             </div>
           </button>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
         <Distribution title="Work orders by category" rows={data?.byCategory ?? []} />
         <Distribution title="Work orders by provider" rows={data?.byProvider ?? []} />
         <Distribution title="Work orders by site" rows={data?.bySite ?? []} />

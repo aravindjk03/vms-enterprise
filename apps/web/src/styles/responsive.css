@@ -97,3 +97,14 @@ textarea:focus-visible,
 .tw select {
   max-width: 100%;
 }
+
+/* Phones: the site switcher shows only its icon so the search button keeps its room. */
+@media (max-width: 640px) {
+  .vms-site-switcher .vms-site-label {
+    display: none;
+  }
+  .vms-site-switcher {
+    max-width: 40px !important;
+    padding: 0 11px !important;
+  }
+}

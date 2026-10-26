@@ -150,26 +150,52 @@ vms-enterprise/
 - **Audit**: sign-ins, failures and every state change are appended to `audit_logs`, which nobody — including the
   schema owner — can update or delete.
 
+### Users, roles and passwords
+
+Administrators manage access in the console under **Administration → Users** and **Roles & permissions** (permission
+`USER_MANAGE`: super, organization and site administrators).
+
+- **New users and resets** get a 16-character temporary password, shown to the administrator exactly once and never
+  stored or logged. The user must choose their own password before any other screen or API works
+  (`403 PASSWORD_CHANGE_REQUIRED`).
+- **Password policy**: at least 12 characters with upper- and lowercase letters, a number and a symbol; must not contain
+  the username; the last 5 passwords cannot be reused. Changing a password signs out the user's other sessions.
+- **No privilege escalation**: super admins grant any role; organization admins any role except super admin; site
+  admins only roles whose permissions they hold themselves, never tenant-wide roles, and only at their own sites. An
+  administrator manages a user only if they could have granted all of that user's roles; nobody changes their own
+  access; the last active super admin cannot be removed or suspended.
+- **Every change needs a reason** (roles, sites, profile, reset, unlock, sign-out-everywhere, suspend, deactivate),
+  stored with before/after values in the audit log. Suspending or deactivating ends all sessions at once.
+- **Locked out?** After 5 failed attempts an account locks for 15 minutes; an administrator can unlock it early.
+
 ### What is live and what is sample data
 
 | Area | Status |
 |---|---|
-| Sign-in, sessions, roles, site scoping | **Live** (PostgreSQL) |
-| Executive dashboard KPI strip | **Live** |
+| Sign-in, sessions, roles, site scoping, forced password change | **Live** (PostgreSQL) |
+| Users & access administration: users, roles, site access, passwords, lockouts | **Live** |
+| Overview: figures the role may see, items needing attention, latest visits, recent activity | **Live** |
 | Visitor register: pre-register → approve/reject → gate check-in → check-out, cancel | **Live** |
 | Service management: requests, work orders, technicians, calendar, recurring schedules, exceptions, transport capture | **Live** |
-| Contractor companies, customer accounts, audit ledger | **Live** (read, paged) |
+| Contractor companies, customer accounts | **Live** (read, paged) |
+| Audit log with names, filters and search | **Live** |
 | All other module screens (analytics, ESG, materials, workflows, …) | **Preview**: sample data, listed in a separate "Preview" menu group and labelled on screen |
 
 **Role-based menus.** A signed-in user's menu is built from the permissions the server grants across *all* of
 their roles (19 roles; every tenant gets the full catalog, see `packages/database/migrations/009_role_catalog.sql`).
 Hiding a menu item is never the control: every API route checks permissions, site scope and segregation of duties.
 
-**Demo mode** is used only by demo builds (`VITE_DEMO_MODE=true`, e.g. GitHub Pages) or a host with no API at all:
-sample data everywhere and a role switcher for previewing personas. A production console whose server is briefly
-unreachable shows a "Can't reach the server" screen and retries; it never falls back to sample data.
+The console never renders a screen outside the user's menu (search, shortcuts and links included); it shows "not part
+of your role" instead.
 
-The console works on phones and tablets: below 900px the menu becomes a drawer.
+**Demo mode** is used only by demo builds (`VITE_DEMO_MODE=true`, e.g. GitHub Pages) or a host with no API at all.
+Visitors sign in with a demo account (password `Demo#2026`: `admin`, `site.admin`, `security.manager`, `guard`,
+`reception`, `host`, `service.manager`, `ehs`, `esg`, `auditor`) and see only what that role may see. Overview, Users,
+Roles and the audit log run on the same screens as production, answered inside the browser from sample data with the
+same escalation rules (`apps/web/src/demo/demoBackend.ts`); nothing is sent anywhere. A production console whose
+server is briefly unreachable shows a "Can't reach the server" screen and retries; it never falls back to sample data.
+
+The console works on phones and tablets: below 960px the menu becomes a drawer.
 
 ### Quick start with Docker Compose (recommended)
 
@@ -248,11 +274,13 @@ See [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) for the security review
 
 ## 📊 Verification & Test Metrics
 
-- **Unit / domain tests**: 305 passed across 28 suites (`npm test`)
-- **Integration tests**: 21 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
+- **Unit / domain tests**: 320 passed (`npm test`)
+- **Integration tests**: 26 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
   role refusal, login lockout, visitor lifecycle with segregation of duties (including secondary HOST roles),
   cross-tenant isolation, refresh-token rotation, parallel-tab refresh and reuse detection, input validation and
-  security headers, plus 12 Service scenarios (`npm run test:integration`).
+  security headers, 5 access-administration scenarios (temporary passwords, forced change, escalation guards, site
+  scope, lockout recovery, tenant isolation, permission-shaped dashboard and audit log), plus 12 Service scenarios
+  (`npm run test:integration`).
   Details: [`docs/service/test-results.md`](docs/service/test-results.md) and [`docs/LAUNCH_READINESS.md`](docs/LAUNCH_READINESS.md)
 - **TypeScript Typecheck**: 0 errors (`tsc --noEmit`)
 - **Dependencies**: `npm audit` — 0 known vulnerabilities

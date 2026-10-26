@@ -8,6 +8,34 @@ certification or a compliance attestation.
 
 1. A full code review of the API, database and web console (15 findings, all fixed; see below).
 2. A UI audit of every screen in demo and live mode, for 5 roles, at 400, 1024 and 1440 px (about 430 screenshots).
+3. A second pass on sign-in and access control (none existed beyond fixed seed accounts) and a design critique of
+   the console, followed by a redesign (see "Sign-in and access control" and "Design").
+
+## Sign-in and access control
+
+| Before | Now |
+|---|---|
+| Users and passwords could only be created with a command-line script | **Administration → Users**: add users, edit roles and site access, reset passwords, unlock, sign out everywhere, suspend, deactivate, reactivate |
+| No way to change a password | Account menu → Change password; temporary passwords must be replaced before anything else works (enforced by the API) |
+| No password history | Last 5 passwords cannot be reused (migration 010, `user_password_history`, append-only for the app role) |
+| Nothing stopped an administrator granting more than they hold | Escalation guard shared by API and demo (`canAssignRole`): site admins grant only roles within their own permissions and sites; nobody changes their own access; the last super admin stays |
+| Access changes were not explained | Every change needs a reason, stored with before/after values in the audit log |
+| The dashboard returned every count to every role | Counts a role may not read come back empty; the Overview hides them |
+| The audit ledger showed raw codes and IDs | Plain-language actions, the person's name, filters by action, record type, time and person |
+| The demo had a role switcher and no sign-in | Demo accounts sign in with a password and see only their role's screens; Users, Roles, Overview and the audit log behave as in production with sample data kept in the browser |
+
+## Design
+
+* **Shell**: navy sidebar with collapsible groups, preview modules folded away, an account menu (change password, sign
+  out), a slim top bar with breadcrumb, site switcher and search; drawer navigation on phones.
+* **Sign-in**: split layout with the product promise on the left, show/hide password, Caps Lock hint, policy checklist
+  when choosing a password.
+* **Overview** replaces the sample analytics of the old executive dashboard: greeting, the figures the role may see,
+  "needs your attention" (visit, request and work-order approvals, work awaiting acceptance, open exceptions, failed
+  sign-ins in the last 24 hours), latest visits and recent activity.
+* **Consistency**: one KPI card style, sentence-case table headers and status pills with a dot, calmer radius and
+  shadows, no "LIVE DATA" badges on every page, visible keyboard focus, reduced-motion support.
+* **Sample data** uses fictional organizations only; a test fails if a real company name returns.
 
 ## Fixed: security and data correctness
 
@@ -49,19 +77,21 @@ certification or a compliance attestation.
 | Check | Result |
 |---|---|
 | `npx tsc --noEmit` | 0 errors (also from a clean clone of the branch) |
-| `npm test` | 305 / 305 pass (28 suites) |
-| `npm run test:integration` | 21 / 21 pass (below) |
-| Migrations | fresh database: 9 applied, 19 roles per tenant; re-run: no-op |
-| `npm run build:web` | builds; main script 881 kB (208 kB gzip), stylesheet 23 kB |
+| `npm test` | 320 / 320 pass (also from a clean clone) |
+| `npm run test:integration` | 26 / 26 pass (below) |
+| Migrations | fresh database: 10 applied, 19 roles per tenant; re-run: no-op |
+| `npm run build:web` | builds; main script 966 kB (229 kB gzip), stylesheet 25 kB |
 | `npm audit` and `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities |
-| Screen sweep | demo: 81 screens at 400 and 1024 px; live: 225 screen visits per width for service manager, guard, host and admin at 400 and 1440 px; no horizontal overflow, no console or page errors |
-| Browser workflows | Service (5 roles, 19 steps) and Visitor (register, approve, check in/out at a chosen gate, audit, sign-out) pass |
+| Screen sweep | live: 280 screen visits per width for admin, service manager, EHS lead, guard and host at 390 and 1440 px; no horizontal overflow, no menu item blocked, no console or page errors. Demo: 7 demo accounts signed in, menus checked against their roles |
+| Browser workflows | Access: create user → one-time password → edit roles → reset (old password refused) → forced change at first sign-in → role-limited menu → suspend (sign-in refused) → own account read-only. Service (5 roles, 19 steps) and Visitor workflows from the first pass |
 | Sessions | reload keeps the session; sign-out survives reload and clears all cookies |
 
 Integration scenarios: migrations are recorded and re-runs are no-ops; drift detection; refusal to run as a role that
 bypasses RLS; RLS in the database; generic login errors and lockout; visitor lifecycle with segregation of duties
 (including a receptionist who is also a host); tenant isolation; refresh rotation, parallel-tab refresh and reuse
-detection, readable session hint, logout; malformed/forged requests and security headers; and 12 Service scenarios
+detection, readable session hint, logout; malformed/forged requests and security headers; 5 access-administration
+scenarios (temporary password and forced change, escalation guards, roles/sites/lockout/reset/deactivate with audit
+and password history, tenant isolation, permission-shaped dashboard and audit log); and 12 Service scenarios
 (providers, request lifecycle, eligibility, conflicts, milestones, evidence correction, transport and GHG capture with
 correction chains, recurrence, analytics, provider site scoping, request/schedule consistency, child-table RLS).
 
@@ -73,8 +103,8 @@ correction chains, recurrence, analytics, provider site scoping, request/schedul
   most admin screens, task center) still show sample data. They are labelled, but they are not product features yet.
 * **Integrations** that do not exist yet: safety/permit, gate hardware and access control, notification delivery,
   document upload, an AI model. The UI and API say so where they appear.
-* **Sample data** still names real companies as visitors' and customers' employers (e.g. Siemens, Tesla); the tenant
-  and mail domains are fictional. Replace with fully fictional data before public demos if required.
+* **Single sign-on and MFA** (SAML/OIDC, TOTP) are not built; accounts use passwords only. Self-service password reset
+  by email is not built either (no mail delivery); administrators issue temporary passwords instead.
 * **Not tested**: load and performance, an accessibility audit (keyboard, screen readers, contrast), browsers other than
   Chromium, backup/restore and disaster recovery, penetration testing.
-* **Bundle size**: the console ships as one 881 kB script; code-splitting would speed up the first load on slow networks.
+* **Bundle size**: the console ships as one 966 kB script; code-splitting would speed up the first load on slow networks.

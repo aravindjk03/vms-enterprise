@@ -122,7 +122,7 @@ export const AuditLogView: React.FC = () => {
     },
   ];
 
-  const selectStyle: React.CSSProperties = { ...inputStyle, width: 'auto', minWidth: '160px', flex: '0 1 220px' };
+  const selectStyle: React.CSSProperties = { ...inputStyle, width: 'auto', minWidth: '150px', flex: '1 1 180px' };
   return (
     <div>
       <PageHeader

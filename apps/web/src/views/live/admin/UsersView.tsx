@@ -127,7 +127,7 @@ export const UsersView: React.FC<{ user: SessionUser; startCreating?: boolean }>
     },
   ];
 
-  const selectStyle: React.CSSProperties = { ...inputStyle, width: 'auto', minWidth: '150px', flex: '0 1 200px' };
+  const selectStyle: React.CSSProperties = { ...inputStyle, width: 'auto', minWidth: '140px', flex: '1 1 160px' };
   return (
     <div>
       <PageHeader
