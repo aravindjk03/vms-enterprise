@@ -548,7 +548,8 @@ export type EnterpriseRole =
   | 'ESG_METHODOLOGY_ADMIN'
   | 'AUDITOR' 
   | 'IT_ADMIN' 
-  | 'MANAGEMENT';
+  | 'MANAGEMENT'
+  | 'SERVICE_MANAGER';
 
 export type DataClassificationLevel = 
   | 'PUBLIC' 
@@ -620,6 +621,8 @@ export interface UserContext {
   mfaVerified?: boolean;
   sessionId?: string;
   isBreakGlass?: boolean;
+  /** Hard expiry of the break-glass grant that produced this context (required when isBreakGlass). */
+  breakGlassExpiresAt?: Date;
   deviceContext?: DeviceSecurityContext;
 }
 
@@ -767,7 +770,10 @@ export interface BreakGlassGrant {
   expiresAt: Date;
   revokedAt?: Date;
   auditRecordId: string;
-  status: 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+  approvedBy?: string;
+  approvedAt?: Date;
+  revokedBy?: string;
 }
 
 export interface DocumentRetentionPolicy {

@@ -71,6 +71,35 @@ export class SecurityGateway {
    * 8. Privacy-by-Design Data Masking
    * 9. Forensic Audit Logging
    */
+  private audit(
+    req: RequestEnvelope<Record<string, unknown>>,
+    routeContext: ProtectedRouteContext,
+    user: UserContext,
+    requestId: string,
+    correlationId: string,
+    result: 'SUCCESS' | 'DENIED' | 'FAILED',
+    reason?: string
+  ): void {
+    if (!this.auditLogger) return;
+    this.auditLogger({
+      auditId: `aud-${randomBytes(12).toString('hex')}`,
+      tenantId: user.tenantId,
+      actorUserId: user.userId,
+      actorRoleContext: user.role,
+      action: String(routeContext.requiredPermission),
+      entityType: req.path.split('/')[2] || 'RESOURCE',
+      entityId: routeContext.targetResourceId || 'GLOBAL',
+      timestamp: new Date(),
+      requestId,
+      correlationId,
+      source: 'API_GATEWAY',
+      ipMetadata: req.clientIp,
+      reason,
+      result,
+      hash: '',
+    });
+  }
+
   public async handleRequest<TBody extends Record<string, unknown>, TResult extends Record<string, unknown>>(
     req: RequestEnvelope<TBody>,
     routeContext: ProtectedRouteContext,
@@ -78,7 +107,13 @@ export class SecurityGateway {
     handler: (authenticatedUser: UserContext, safeBody: TBody, requestId: string) => Promise<TResult>
   ): Promise<SecurityGatewayResponse<TResult>> {
     const requestId = this.generateRequestId();
-    const correlationId = req.headers['x-correlation-id'] || requestId;
+    const suppliedCorrelationId = req.headers['x-correlation-id'];
+    // Client-supplied correlation ids flow into the audit ledger, so only well-formed ids are kept.
+    const correlationId =
+      typeof suppliedCorrelationId === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(suppliedCorrelationId)
+        ? suppliedCorrelationId
+        : requestId;
+    let user: UserContext | null = null;
     const clientIdentifier = req.clientIp || '127.0.0.1';
     const securityHeaders = SecurityHeadersService.getHeaders();
 
@@ -104,43 +139,47 @@ export class SecurityGateway {
       }
 
       // Step 4: Resolve Authenticated User & Derive Tenant Context strictly from database
-      const user = await userContextLookup(sessionCheck.session);
+      user = await userContextLookup(sessionCheck.session);
       if (!user) {
         throw new SecurityError('AUTHENTICATION_FAILED', 'User identity could not be resolved.', 401);
       }
 
       // CRITICAL SECURITY RULE: Neutralize client-supplied tenant_id!
       // If the client submitted a body containing a tenantId or tenant_id, sanitize or reject it if it conflicts with authenticated context!
+      // Every alias is validated (not just the first truthy one), otherwise
+      // { tenantId: own, tenant_id: other } would smuggle a foreign tenant to the handler.
       const safeBody = { ...req.body } as TBody;
-      if (safeBody) {
-        const clientTenant = (safeBody['tenantId'] || safeBody['tenant_id']) as string | undefined;
-        if (clientTenant && clientTenant !== user.tenantId && user.role !== 'SUPER_ADMIN') {
+      const clientTenants = [safeBody['tenantId'], safeBody['tenant_id']].filter(v => v !== undefined && v !== null);
+      if (clientTenants.some(t => t !== user!.tenantId)) {
+        throw new SecurityError(
+          'AUTHORIZATION_DENIED',
+          'Direct manipulation of tenant_id prohibited: payload does not match authenticated context.'
+        );
+      }
+
+      const clientSites = [safeBody['siteId'], safeBody['site_id']].filter(v => v !== undefined && v !== null) as string[];
+      if (clientSites.length > 1 && clientSites[0] !== clientSites[1]) {
+        throw new SecurityError('AUTHORIZATION_DENIED', 'Conflicting site identifiers in payload.');
+      }
+      const clientSite = clientSites[0];
+      if (
+        clientSite &&
+        user.siteId &&
+        clientSite !== user.siteId &&
+        user.role !== 'SUPER_ADMIN' &&
+        user.role !== 'ORGANIZATION_ADMIN'
+      ) {
+        if (!user.assignedSiteIds || !user.assignedSiteIds.includes(clientSite)) {
           throw new SecurityError(
             'AUTHORIZATION_DENIED',
-            'Direct manipulation of tenant_id prohibited: payload does not match authenticated context.'
+            'Direct manipulation of site_id prohibited: security guards cannot act on non-assigned sites.'
           );
-        }
-
-        const clientSite = (safeBody['siteId'] || safeBody['site_id']) as string | undefined;
-        if (
-          clientSite &&
-          user.siteId &&
-          clientSite !== user.siteId &&
-          user.role !== 'SUPER_ADMIN' &&
-          user.role !== 'ORGANIZATION_ADMIN'
-        ) {
-          if (!user.assignedSiteIds || !user.assignedSiteIds.includes(clientSite)) {
-            throw new SecurityError(
-              'AUTHORIZATION_DENIED',
-              'Direct manipulation of site_id prohibited: security guards cannot act on non-assigned sites.'
-            );
-          }
         }
       }
 
       // Step 5: Evaluate RBAC & ABAC Policy
-      const payloadTenant = safeBody ? ((safeBody['tenantId'] || safeBody['tenant_id']) as string | undefined) : undefined;
-      const payloadSite = safeBody ? ((safeBody['siteId'] || safeBody['site_id']) as string | undefined) : undefined;
+      const payloadTenant = clientTenants[0] as string | undefined;
+      const payloadSite = clientSite;
       const targetTenantId = routeContext.targetTenantId || payloadTenant || user.tenantId;
       const targetSiteId = routeContext.targetSiteId || payloadSite || user.siteId;
 
@@ -167,24 +206,7 @@ export class SecurityGateway {
       const safeResult = maskRecord(rawResult, accessDecision);
 
       // Step 9: Audit Logging
-      if (this.auditLogger) {
-        this.auditLogger({
-          auditId: `aud-${randomBytes(12).toString('hex')}`,
-          tenantId: user.tenantId,
-          actorUserId: user.userId,
-          actorRoleContext: user.role,
-          action: String(routeContext.requiredPermission),
-          entityType: req.path.split('/')[2] || 'RESOURCE',
-          entityId: routeContext.targetResourceId || 'GLOBAL',
-          timestamp: new Date(),
-          requestId,
-          correlationId,
-          source: 'API_GATEWAY',
-          ipMetadata: req.clientIp,
-          result: 'SUCCESS',
-          hash: '',
-        });
-      }
+      this.audit(req, routeContext, user, requestId, correlationId, 'SUCCESS');
 
       return {
         statusCode: 200,
@@ -195,6 +217,12 @@ export class SecurityGateway {
       };
     } catch (err: unknown) {
       const safeErr = SafeErrorHandler.toSafeResponse(err, requestId);
+      // Denied and failed requests are audited too; the DENIED-based security alerts depend on them.
+      // Unauthenticated noise (no resolved identity) is left to the rate limiter / access logs.
+      if (user) {
+        const result = err instanceof SecurityError && err.statusCode < 500 ? 'DENIED' : 'FAILED';
+        this.audit(req, routeContext, user, requestId, correlationId, result, safeErr.body?.code);
+      }
       return {
         statusCode: safeErr.statusCode,
         requestId,

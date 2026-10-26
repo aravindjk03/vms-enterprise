@@ -35,6 +35,7 @@ export class RelationalDatabase {
   private data: Map<string, Map<string, Record<string, any>>> = new Map();
   private transactionSnapshots: Array<Map<string, Map<string, Record<string, any>>>> = [];
   private currentTenantId: string | null = null;
+  private systemScopeDepth = 0;
 
   constructor() {
     this.registerSchema();
@@ -60,6 +61,48 @@ export class RelationalDatabase {
     return this.currentTenantId;
   }
 
+  /**
+   * Runs trusted platform work (migrations/seeding, outbox dispatch, scheduled sweeps)
+   * that legitimately spans tenants. Outside this scope, tenant-scoped tables fail closed
+   * when no tenant context is active.
+   */
+  public runAsSystem<R>(fn: () => R): R {
+    this.systemScopeDepth++;
+    try {
+      return fn();
+    } finally {
+      this.systemScopeDepth--;
+    }
+  }
+
+  /**
+   * Resolves the tenant a tenant-scoped operation is bound to.
+   * - An explicit override must be a non-empty id and may not contradict the active context.
+   * - With neither override nor context, access is denied unless running in system scope
+   *   (returns null, meaning "all tenants").
+   */
+  private resolveEffectiveTenant(table: TableDefinition, tenantIdOverride: string | undefined, operation: string): string | null {
+    if (!table.tenantScoped || !table.tenantColumn) {
+      return null;
+    }
+    if (tenantIdOverride !== undefined) {
+      if (typeof tenantIdOverride !== 'string' || tenantIdOverride.trim() === '') {
+        throw new Error(`Tenant isolation violation: empty tenant override for ${operation} on '${table.name}'`);
+      }
+      if (this.currentTenantId && this.currentTenantId !== tenantIdOverride) {
+        throw new Error(`Tenant isolation violation: override ${tenantIdOverride} conflicts with active tenant context ${this.currentTenantId}`);
+      }
+      return tenantIdOverride;
+    }
+    if (this.currentTenantId) {
+      return this.currentTenantId;
+    }
+    if (this.systemScopeDepth > 0) {
+      return null;
+    }
+    throw new Error(`Tenant isolation violation: ${operation} on tenant-scoped table '${table.name}' requires a tenant context`);
+  }
+
   public registerTable(def: TableDefinition) {
     this.tables.set(def.name.toLowerCase(), def);
     if (!this.data.has(def.name.toLowerCase())) {
@@ -81,6 +124,7 @@ export class RelationalDatabase {
     }
     this.transactionSnapshots = [];
     this.currentTenantId = null;
+    this.systemScopeDepth = 0;
   }
 
   // --------------------------------------------------------------------------
@@ -120,16 +164,22 @@ export class RelationalDatabase {
     const table = this.resolveTable(tableName);
     const tableRows = this.data.get(table.name.toLowerCase())!;
 
-    const tenantId = tenantIdOverride || this.currentTenantId;
     const clonedRow: Record<string, any> = { ...row };
 
     // Tenant enforcement
     if (table.tenantScoped && table.tenantColumn) {
+      // Without a context, an insert is still bound to the tenant explicitly named on the row.
+      const tenantId = tenantIdOverride === undefined && !this.currentTenantId && clonedRow[table.tenantColumn]
+        ? null
+        : this.resolveEffectiveTenant(table, tenantIdOverride, 'insert');
       if (tenantId && !clonedRow[table.tenantColumn]) {
         clonedRow[table.tenantColumn] = tenantId;
       }
       if (tenantId && clonedRow[table.tenantColumn] !== tenantId) {
         throw new Error(`Cross-tenant insertion prohibited: attempted ${clonedRow[table.tenantColumn]} in tenant context ${tenantId}`);
+      }
+      if (!clonedRow[table.tenantColumn]) {
+        throw new Error(`Tenant isolation violation: row for '${table.name}' has no ${table.tenantColumn}`);
       }
     }
 
@@ -189,7 +239,7 @@ export class RelationalDatabase {
     if (!row) return null;
 
     // Row-Level Security Check
-    const effectiveTenant = tenantIdOverride !== undefined ? tenantIdOverride : this.currentTenantId;
+    const effectiveTenant = this.resolveEffectiveTenant(table, tenantIdOverride, 'read');
     if (table.tenantScoped && table.tenantColumn && effectiveTenant) {
       if (row[table.tenantColumn] !== effectiveTenant) {
         // Invisible to other tenants!
@@ -205,7 +255,7 @@ export class RelationalDatabase {
     const tableRows = this.data.get(table.name.toLowerCase())!;
     const results: T[] = [];
 
-    const effectiveTenant = tenantIdOverride !== undefined ? tenantIdOverride : this.currentTenantId;
+    const effectiveTenant = this.resolveEffectiveTenant(table, tenantIdOverride, 'read');
 
     for (const row of tableRows.values()) {
       // Row-Level Security filter
@@ -243,10 +293,16 @@ export class RelationalDatabase {
     }
 
     // RLS Guard
-    const effectiveTenant = tenantIdOverride !== undefined ? tenantIdOverride : this.currentTenantId;
+    const effectiveTenant = this.resolveEffectiveTenant(table, tenantIdOverride, 'update');
     if (table.tenantScoped && table.tenantColumn && effectiveTenant) {
       if (existing[table.tenantColumn] !== effectiveTenant) {
         throw new Error(`Cross-tenant modification prohibited: record belongs to different tenant`);
+      }
+    }
+    if (table.tenantScoped && table.tenantColumn) {
+      const requestedTenant = (updates as Record<string, any>)[table.tenantColumn];
+      if (requestedTenant !== undefined && requestedTenant !== existing[table.tenantColumn]) {
+        throw new Error(`Tenant isolation violation: ${table.tenantColumn} of '${table.name}' records is immutable`);
       }
     }
 
@@ -266,7 +322,7 @@ export class RelationalDatabase {
     if (!existing) return false;
 
     // RLS Guard
-    const effectiveTenant = tenantIdOverride !== undefined ? tenantIdOverride : this.currentTenantId;
+    const effectiveTenant = this.resolveEffectiveTenant(table, tenantIdOverride, 'delete');
     if (table.tenantScoped && table.tenantColumn && effectiveTenant) {
       if (existing[table.tenantColumn] !== effectiveTenant) {
         throw new Error(`Cross-tenant deletion prohibited: record belongs to different tenant`);

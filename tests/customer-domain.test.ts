@@ -371,7 +371,7 @@ describe('Part 7: Complete Customer Management Domain Verification', () => {
     assert.ok(visit.ghgActivityId, 'Must create embedded GHG activity');
 
     // Retrieve GHG Activity from DB to verify source domain and scope
-    const ghgActivity = db.findById('ghg_activities', visit.ghgActivityId);
+    const ghgActivity = db.findById('ghg_activities', visit.ghgActivityId, TENANT_A);
     assert.ok(ghgActivity);
     assert.strictEqual(ghgActivity.source_domain, 'CUSTOMER', 'Source domain must strictly be CUSTOMER');
     assert.strictEqual(ghgActivity.scope, 'SCOPE_3');

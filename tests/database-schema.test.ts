@@ -87,11 +87,11 @@ describe('Database Schema, DDL Migration & Relational Engine Verification', () =
     assert.ok(status.seedRowCount > 50);
 
     // Verify global tenant and sites
-    const tenant = db.findById('tenants', '00000000-0000-0000-0000-000000000001');
+    const tenant = db.findById('tenants', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001');
     assert.ok(tenant, 'Tenant GLOBAL-MFG must be seeded');
     assert.strictEqual(tenant.code, 'GLOBAL-MFG');
 
-    const sites = db.findMany('sites', { tenant_id: '00000000-0000-0000-0000-000000000001' });
+    const sites = db.findMany('sites', { tenant_id: '00000000-0000-0000-0000-000000000001' }, '00000000-0000-0000-0000-000000000001');
     assert.strictEqual(sites.length, 2);
     const siteCodes = sites.map((s: any) => s.code);
     assert.ok(siteCodes.includes('DETROIT-ASSEMBLY'));

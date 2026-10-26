@@ -56,6 +56,10 @@ export class BiometricSecurityService {
 
   constructor(private provider: IBiometricProvider = new MockBiometricHardwareProvider()) {}
 
+  private static referenceKey(tenantId: string, personId: string): string {
+    return `${tenantId}:${personId}`;
+  }
+
   /**
    * Enrolls a person's biometric reference ONLY with documented statutory consent.
    * Strips raw image immediately and stores solely the protected reference ID.
@@ -70,7 +74,11 @@ export class BiometricSecurityService {
       throw new Error('Biometric processing prohibited: valid affirmative consent record is mandatory.');
     }
 
-    if (operator.role !== 'SUPER_ADMIN' && operator.tenantId !== consent.tenantId) {
+    if (consent.personId !== personId) {
+      throw new Error('Biometric processing prohibited: consent record belongs to a different person.');
+    }
+
+    if (operator.tenantId !== consent.tenantId) {
       throw new Error('Cross-tenant biometric enrollment prohibited.');
     }
 
@@ -93,7 +101,7 @@ export class BiometricSecurityService {
       enrolledAt: now,
     };
 
-    this.references.set(personId, record);
+    this.references.set(BiometricSecurityService.referenceKey(consent.tenantId, personId), record);
     this.logAuditEvent('FACE_ENROLLMENT_COMPLETED', personId, {
       biometricId,
       provider: record.provider,
@@ -108,16 +116,20 @@ export class BiometricSecurityService {
    * Returns sanitized decision (ALLOW / DENY / MANUAL_INSPECTION) without exposing internal vector models.
    */
   public async verify(
+    operator: UserContext,
     personId: string,
     probeBuffer: Buffer,
     deviceInfo?: string,
     transactionId?: string
   ): Promise<BiometricVerificationRecord> {
-    const reference = this.references.get(personId);
+    // References are tenant-keyed: an operator can only ever match against its own tenant's enrollments.
+    const stored = this.references.get(BiometricSecurityService.referenceKey(operator.tenantId, personId));
+    const retentionExpired = !!stored && stored.retentionExpiresAt.getTime() <= Date.now();
+    const reference = stored && !retentionExpired ? stored : undefined;
     if (!reference || reference.status !== 'ACTIVE') {
       const deniedRecord: BiometricVerificationRecord = {
         verificationId: `bio-ver-${randomUUID()}`,
-        tenantId: reference?.tenantId || 'UNKNOWN',
+        tenantId: operator.tenantId,
         personId,
         transactionId,
         provider: this.provider.providerName,
@@ -183,13 +195,14 @@ export class BiometricSecurityService {
   /**
    * Performs Right-to-be-Forgotten deletion of biometric reference.
    */
-  public async deleteReference(personId: string, reason: string = 'Consent withdrawn / Retention expiry'): Promise<boolean> {
-    const record = this.references.get(personId);
+  public async deleteReference(tenantId: string, personId: string, reason: string = 'Consent withdrawn / Retention expiry'): Promise<boolean> {
+    const key = BiometricSecurityService.referenceKey(tenantId, personId);
+    const record = this.references.get(key);
     if (!record) return false;
 
     record.status = 'REVOKED';
     record.deletedAt = new Date();
-    this.references.delete(personId);
+    this.references.delete(key);
 
     this.logAuditEvent('BIOMETRIC_REFERENCE_DELETED', personId, { reason });
     return true;
@@ -198,21 +211,22 @@ export class BiometricSecurityService {
   /**
    * Alias for deleteReference per Section 19 specification.
    */
-  public async delete(personId: string, reason?: string): Promise<boolean> {
-    return this.deleteReference(personId, reason);
+  public async delete(tenantId: string, personId: string, reason?: string): Promise<boolean> {
+    return this.deleteReference(tenantId, personId, reason);
   }
 
-  public getReferenceStatus(personId: string): 'ACTIVE' | 'REVOKED' | 'EXPIRED' | 'NOT_ENROLLED' {
-    const ref = this.references.get(personId);
+  public getReferenceStatus(tenantId: string, personId: string): 'ACTIVE' | 'REVOKED' | 'EXPIRED' | 'NOT_ENROLLED' {
+    const ref = this.references.get(BiometricSecurityService.referenceKey(tenantId, personId));
     if (!ref) return 'NOT_ENROLLED';
+    if (ref.retentionExpiresAt.getTime() <= Date.now()) return 'EXPIRED';
     return ref.status;
   }
 
   /**
    * Alias for getReferenceStatus per Section 19 specification.
    */
-  public status(personId: string): 'ACTIVE' | 'REVOKED' | 'EXPIRED' | 'NOT_ENROLLED' {
-    return this.getReferenceStatus(personId);
+  public status(tenantId: string, personId: string): 'ACTIVE' | 'REVOKED' | 'EXPIRED' | 'NOT_ENROLLED' {
+    return this.getReferenceStatus(tenantId, personId);
   }
 
   public getAuditTrail() {

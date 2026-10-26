@@ -5,7 +5,7 @@ This document outlines the data model for carbon accounting, emission factor ver
 ---
 
 > [!NOTE] **DEMO / TEMPORARY BENCHMARK EMISSION FACTORS NOTICE**
-> All emission factors in migration `002_seed_data.sql` and `seeds.sql` are **explicitly provided as demonstration / temporary benchmark factors** based on representative UK DEFRA/BEIS, US EPA, and CEA India publication baselines. In production enterprise deployments, emission factor datasets are managed via certified API feeds (e.g., Climatiq, Ecoinvent, Gabi, DEFRA official annual releases).
+> All emission factors in migration `002_seed_data.sql` are **explicitly provided as demonstration / temporary benchmark factors** based on representative UK DEFRA/BEIS, US EPA, and CEA India publication baselines. In production enterprise deployments, emission factor datasets are managed via certified API feeds (e.g., Climatiq, Ecoinvent, Gabi, DEFRA official annual releases).
 
 ---
 

@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { EnterpriseRole, MfaChannel, MfaPolicyConfig } from '@vms/types';
 
 export interface TotpSecret {
@@ -17,13 +17,20 @@ export interface MfaChallenge {
 
 export class MfaService {
   private static readonly TIME_STEP_SECONDS = 30;
+  /** Failures across all of a user's challenges before MFA is locked for the user. */
+  private static readonly USER_FAILURE_LIMIT = 10;
+  private static readonly USER_LOCKOUT_MS = 15 * 60 * 1000;
   private challenges: Map<string, MfaChallenge> = new Map();
   private userMfaSecrets: Map<string, string> = new Map();
-  private userRecoveryCodes: Map<string, string[]> = new Map();
+  /** SHA-256 hashes of unused recovery codes (codes themselves are shown once, never stored). */
+  private userRecoveryCodeHashes: Map<string, Buffer[]> = new Map();
+  /** Last accepted TOTP time step per user, to reject replay of a code within its window. */
+  private lastAcceptedStep: Map<string, number> = new Map();
+  private userFailures: Map<string, { count: number; lockedUntil?: number }> = new Map();
 
   constructor(
     private policy: MfaPolicyConfig = {
-      mandatoryRoles: ['SUPER_ADMIN'],
+      mandatoryRoles: ['SUPER_ADMIN', 'ORGANIZATION_ADMIN', 'IT_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER'],
       tenantEnforced: false,
       allowedChannels: ['TOTP', 'RECOVERY_CODE', 'OTP_EMAIL'],
       maxFailedAttempts: 3,
@@ -43,9 +50,23 @@ export class MfaService {
   /**
    * Generates a new TOTP secret for user enrollment.
    */
-  public generateTotpSecret(userId: string, email: string, issuer: string = 'VMS-Enterprise'): TotpSecret {
+  public isEnrolled(userId: string): boolean {
+    return this.userMfaSecrets.has(userId);
+  }
+
+  /**
+   * Generates a new TOTP secret for user enrollment.
+   * Replacing an existing enrollment requires a valid code from the current factor, so a
+   * hijacked session cannot silently swap the user's authenticator.
+   */
+  public generateTotpSecret(userId: string, email: string, issuer: string = 'VMS-Enterprise', currentCode?: string): TotpSecret {
+    const existing = this.userMfaSecrets.get(userId);
+    if (existing && (!currentCode || this.matchTotpStep(existing, currentCode) === null)) {
+      throw new Error('Re-enrolling MFA requires a valid code from the currently enrolled authenticator.');
+    }
     const secretKey = randomBytes(20).toString('hex');
     this.userMfaSecrets.set(userId, secretKey);
+    this.lastAcceptedStep.delete(userId);
 
     const uri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(email)}?secret=${secretKey}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
     return { secretKey, uri };
@@ -57,10 +78,11 @@ export class MfaService {
   public generateRecoveryCodes(userId: string, count: number = 8): string[] {
     const codes: string[] = [];
     for (let i = 0; i < count; i++) {
-      const code = `${randomBytes(2).toString('hex')}-${randomBytes(2).toString('hex')}`.toUpperCase();
-      codes.push(code);
+      // 64 bits of entropy per code
+      const raw = randomBytes(8).toString('hex').toUpperCase();
+      codes.push(raw.match(/.{4}/g)!.join('-'));
     }
-    this.userRecoveryCodes.set(userId, [...codes]);
+    this.userRecoveryCodeHashes.set(userId, codes.map(c => MfaService.hashRecoveryCode(c)));
     return codes;
   }
 
@@ -91,17 +113,44 @@ export class MfaService {
    * Verifies TOTP code allowing ±1 step clock drift (60 second window).
    */
   public verifyTotpCode(secretKey: string, token: string): boolean {
+    return this.matchTotpStep(secretKey, token) !== null;
+  }
+
+  /** Returns the matching time step (±1 step drift) or null, comparing in constant time. */
+  private matchTotpStep(secretKey: string, token: string): number | null {
     const trimmed = token.trim();
-    if (trimmed.length !== 6) return false;
+    if (!/^\d{6}$/.test(trimmed)) return null;
 
     const now = Date.now();
+    const currentStep = Math.floor(now / 1000 / MfaService.TIME_STEP_SECONDS);
+    let matched: number | null = null;
     for (const offset of [-1, 0, 1]) {
       const checkTime = new Date(now + offset * MfaService.TIME_STEP_SECONDS * 1000);
-      if (this.computeTotp(secretKey, checkTime) === trimmed) {
-        return true;
+      if (timingSafeEqual(Buffer.from(this.computeTotp(secretKey, checkTime)), Buffer.from(trimmed))) {
+        matched = currentStep + offset;
       }
     }
-    return false;
+    return matched;
+  }
+
+  private static hashRecoveryCode(code: string): Buffer {
+    return createHash('sha256').update(code.trim().toUpperCase().replace(/[^0-9A-F]/g, '')).digest();
+  }
+
+  /** Whether the user is currently locked out of MFA verification. */
+  public isUserLocked(userId: string): boolean {
+    const state = this.userFailures.get(userId);
+    return !!state?.lockedUntil && Date.now() < state.lockedUntil;
+  }
+
+  private recordFailure(userId: string): void {
+    const state = this.userFailures.get(userId) || { count: 0 };
+    state.count++;
+    if (state.count >= MfaService.USER_FAILURE_LIMIT) {
+      state.lockedUntil = Date.now() + MfaService.USER_LOCKOUT_MS;
+      state.count = 0;
+    }
+    this.userFailures.set(userId, state);
   }
 
   /**
@@ -137,35 +186,46 @@ export class MfaService {
 
     const { userId, tenantId } = challenge;
 
+    // Per-user limit across challenges: a fresh password login must not reset MFA guessing.
+    if (this.isUserLocked(userId)) {
+      this.challenges.delete(challengeId);
+      return { success: false, error: 'MFA is temporarily locked for this account.' };
+    }
+
     challenge.attempts++;
     if (challenge.attempts > this.policy.maxFailedAttempts) {
       this.challenges.delete(challengeId);
       return { success: false, error: 'Maximum MFA verification attempts exceeded.' };
     }
 
-    // Check Recovery Codes
-    const recoveryCodes = this.userRecoveryCodes.get(challenge.userId) || [];
-    const recoveryIndex = recoveryCodes.indexOf(token.trim().toUpperCase());
+    // Check Recovery Codes (hashed, constant-time comparison, single use)
+    const recoveryHashes = this.userRecoveryCodeHashes.get(userId) || [];
+    const candidate = MfaService.hashRecoveryCode(token);
+    const recoveryIndex = recoveryHashes.findIndex(h => timingSafeEqual(h, candidate));
     if (recoveryIndex !== -1) {
-      // Consume single-use code
-      recoveryCodes.splice(recoveryIndex, 1);
-      this.userRecoveryCodes.set(challenge.userId, recoveryCodes);
+      recoveryHashes.splice(recoveryIndex, 1);
       this.challenges.delete(challengeId);
+      this.userFailures.delete(userId);
       return { success: true, userId, tenantId };
     }
 
     // Check TOTP
-    const secret = this.userMfaSecrets.get(challenge.userId);
+    const secret = this.userMfaSecrets.get(userId);
     if (!secret) {
+      this.recordFailure(userId);
       return { success: false, error: 'No MFA enrollment registered for this user.' };
     }
 
-    const isValid = this.verifyTotpCode(secret, token);
-    if (isValid) {
+    const step = this.matchTotpStep(secret, token);
+    const lastStep = this.lastAcceptedStep.get(userId);
+    if (step !== null && (lastStep === undefined || step > lastStep)) {
+      this.lastAcceptedStep.set(userId, step);
       this.challenges.delete(challengeId);
+      this.userFailures.delete(userId);
       return { success: true, userId, tenantId };
     }
 
+    this.recordFailure(userId);
     return { success: false, error: 'Invalid MFA verification code.' };
   }
 }

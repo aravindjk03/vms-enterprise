@@ -45,6 +45,14 @@ export type PermissionAction =
   | 'POLICY_EVALUATE'
   | 'TASK_READ'
   | 'TASK_MANAGE'
+  // Service / Work Management (Part 9)
+  | 'SERVICE_REQUEST_CREATE'  // raise a service request (any employee role that needs work done)
+  | 'SERVICE_APPROVE'         // approve/reject requests, work orders and recurring schedules
+  | 'SERVICE_MANAGE'          // providers, technicians, work orders, assignments, schedules
+  | 'SERVICE_EXECUTE'         // record work progress milestones and completion submission
+  | 'SERVICE_ARRIVAL_RECORD'  // record reported technician arrival / departure at reception or gate
+  | 'SERVICE_ACCEPT'          // accept or return submitted completion
+  | 'SERVICE_PREREQ_VERIFY'   // manually verify safety prerequisites while Safety service is not integrated
   | PermissionKey;
 
 /**
@@ -54,14 +62,15 @@ export const PERMISSION_NORMALIZATION_MAP: Record<string, string[]> = {
   VISITOR_READ: ['visitor.read'],
   VISITOR_WRITE: ['visitor.create', 'visitor.update'],
   VISITOR_APPROVE: ['visitor.approve'],
-  CUSTOMER_READ: ['customer.read', 'customer.export', 'customer_accounts.export', 'customer_visits.export'],
+  CUSTOMER_READ: ['customer.read'],
   CUSTOMER_WRITE: ['customer.create', 'customer.update'],
   CUSTOMER_APPROVE: ['customer.approve'],
-  CONTRACTOR_READ: ['contractor.read', 'contractor.export'],
+  CONTRACTOR_READ: ['contractor.read'],
   CONTRACTOR_WRITE: ['contractor.create', 'contractor.update', 'contractor.manage_compliance'],
   CONTRACTOR_APPROVE: ['contractor.approve'],
   CONTRACTOR_GATE_CHECKIN: ['contractor.checkin', 'contractor.gate', 'gate.actuate'],
   SERVICE_READ: ['service.read'],
+  SERVICE_APPROVE: ['service.approve'],
   SERVICE_WRITE: ['service.create', 'service.update'],
   MATERIAL_READ: ['material.read'],
   MATERIAL_WRITE: ['material.create', 'material.update', 'material.gate_entry'],
@@ -71,7 +80,7 @@ export const PERMISSION_NORMALIZATION_MAP: Record<string, string[]> = {
   GATE_VIEW: ['gate.read'],
   DOCUMENT_READ_SENSITIVE: ['document.read.sensitive'],
   DOCUMENT_READ_STANDARD: ['document.read'],
-  PTW_APPROVE: ['emergency.manage', 'safety.permit.approve'],
+  PTW_APPROVE: ['safety.permit.approve'],
   ESG_ACTIVITY_READ: ['esg.activity.read'],
   ESG_ACTIVITY_WRITE: ['esg.activity.create', 'esg.activity.update'],
   GHG_CALCULATION_READ: ['esg.calculation.read', 'ghg.calculation.read'],
@@ -96,6 +105,13 @@ export const PERMISSION_NORMALIZATION_MAP: Record<string, string[]> = {
  * Comprehensive Enterprise Role-to-Permissions Matrix (18 Enterprise Roles)
  */
 export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
+  SERVICE_MANAGER: [
+    'SERVICE_READ', 'SERVICE_WRITE', 'SERVICE_REQUEST_CREATE', 'SERVICE_APPROVE', 'SERVICE_MANAGE',
+    'SERVICE_EXECUTE', 'SERVICE_ARRIVAL_RECORD', 'SERVICE_ACCEPT',
+    'DOCUMENT_READ_STANDARD', 'VEHICLE_READ', 'GATE_VIEW', 'ESG_ACTIVITY_READ',
+    'TASK_READ', 'APPROVAL_READ', 'APPROVAL_ACTION',
+    'service.read', 'service.create', 'service.approve', 'document.read', 'vehicle.read', 'gate.read', 'esg.activity.read',
+  ],
   SUPER_ADMIN: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
     'CUSTOMER_READ', 'CUSTOMER_WRITE', 'CUSTOMER_APPROVE',
@@ -131,6 +147,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'approval.read', 'approval.action', 'approval.delegate',
     'policy.manage', 'policy.validate', 'policy.evaluate',
     'task.read', 'task.manage',
+    'SERVICE_REQUEST_CREATE', 'SERVICE_APPROVE', 'SERVICE_MANAGE', 'SERVICE_EXECUTE', 'SERVICE_ARRIVAL_RECORD', 'SERVICE_ACCEPT', 'SERVICE_PREREQ_VERIFY',
   ],
   ORGANIZATION_ADMIN: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
@@ -153,6 +170,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'masterdata.read', 'masterdata.manage',
     'approval.read', 'approval.action', 'approval.delegate',
     'task.read', 'task.manage',
+    'SERVICE_READ', 'SERVICE_MANAGE',
   ],
   SITE_ADMIN: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
@@ -178,6 +196,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'masterdata.read', 'masterdata.manage',
     'approval.read', 'approval.action', 'approval.delegate',
     'task.read', 'task.manage',
+    'SERVICE_READ', 'SERVICE_REQUEST_CREATE', 'SERVICE_APPROVE', 'SERVICE_MANAGE', 'SERVICE_EXECUTE', 'SERVICE_ARRIVAL_RECORD', 'SERVICE_ACCEPT', 'SERVICE_PREREQ_VERIFY',
   ],
   SECURITY_MANAGER: [
     'VISITOR_READ', 'VISITOR_APPROVE',
@@ -198,6 +217,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'document.read', 'document.verify',
     'emergency.read', 'emergency.declare', 'emergency.manage',
     'audit.read',
+    'SERVICE_READ', 'SERVICE_ARRIVAL_RECORD',
   ],
   SECURITY_GUARD: [
     'VISITOR_READ',
@@ -215,6 +235,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'vehicle.read', 'vehicle.manage',
     'gate.read', 'gate.entry', 'gate.exit', 'gate.actuate',
     'document.read',
+    'SERVICE_ARRIVAL_RECORD',
   ],
   GATE_OPERATOR: [
     'VISITOR_READ',
@@ -232,6 +253,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'vehicle.read', 'vehicle.manage',
     'gate.read', 'gate.entry', 'gate.exit', 'gate.actuate',
     'document.read',
+    'SERVICE_READ', 'SERVICE_ARRIVAL_RECORD',
   ],
   RECEPTIONIST: [
     'VISITOR_READ', 'VISITOR_WRITE',
@@ -242,12 +264,14 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'customer.read', 'customer.create',
     'gate.read',
     'document.read', 'document.upload',
+    'SERVICE_READ', 'SERVICE_ARRIVAL_RECORD',
   ],
   HOST: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
     'CUSTOMER_READ', 'CUSTOMER_WRITE', 'CUSTOMER_APPROVE',
     'visitor.read', 'visitor.create', 'visitor.update', 'visitor.approve',
     'customer.read', 'customer.create', 'customer.approve',
+    'SERVICE_REQUEST_CREATE',
   ],
   EHS_MANAGER: [
     'CONTRACTOR_READ',
@@ -262,6 +286,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'gate.read',
     'emergency.read', 'emergency.declare', 'emergency.manage',
     'esg.activity.read',
+    'SERVICE_READ', 'SERVICE_PREREQ_VERIFY',
   ],
   HR: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
@@ -315,6 +340,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'contractor.read',
     'material.read',
     'vehicle.read',
+    'SERVICE_READ',
   ],
   ESG_METHODOLOGY_ADMIN: [
     'ESG_ACTIVITY_READ',
@@ -339,6 +365,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'material.read',
     'esg.activity.read',
     'audit.read', 'audit.export',
+    'SERVICE_READ',
   ],
   IT_ADMIN: [
     'SYSTEM_ADMIN_MANAGE',
@@ -366,6 +393,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'gate.read',
     'esg.activity.read',
     'audit.read',
+    'SERVICE_READ',
   ],
 };
 
@@ -411,7 +439,8 @@ export function hasPermissionMatch(
 
   // Check normalized mapping
   for (const [legacy, dotList] of Object.entries(PERMISSION_NORMALIZATION_MAP)) {
-    if (requested === legacy && dotList.some(d => grantedList.includes(d as PermissionAction))) {
+    // A legacy capability is implied only when every one of its fine-grained permissions is held.
+    if (requested === legacy && dotList.every(d => grantedList.includes(d as PermissionAction))) {
       return true;
     }
     if (dotList.includes(requested as string) && grantedList.includes(legacy as PermissionAction)) {
@@ -431,8 +460,8 @@ export function evaluateAccess(
   action: PermissionAction,
   resource: ResourceContext
 ): AccessDecision {
-  // 1. Mandatory Server-Side Multi-Tenant Isolation Check
-  if (user.role !== 'SUPER_ADMIN' && user.tenantId !== resource.tenantId) {
+  // 1. Mandatory Server-Side Multi-Tenant Isolation Check (no role or break-glass exemption)
+  if (!user.tenantId || user.tenantId !== resource.tenantId) {
     return {
       allowed: false,
       reason: 'Cross-tenant access prohibited by data isolation policy.',
@@ -440,13 +469,22 @@ export function evaluateAccess(
     };
   }
 
-  // 2. Break-glass override check
+  // 2. Break-glass contexts must carry a live expiry. A stale or unbounded elevated
+  // context is denied outright rather than silently treated as the elevated role.
+  // Break-glass relaxes only site/gate/zone/time scoping below; RBAC, segregation of
+  // duties and data classification still apply to the elevated role.
+  const evaluationNow = resource.evaluationTime || resource.timeOfAccess || new Date();
   if (user.isBreakGlass) {
-    return {
-      allowed: true,
-      maskedFields: [],
-    };
+    const expiresAt = user.breakGlassExpiresAt?.getTime();
+    if (expiresAt === undefined || !Number.isFinite(expiresAt) || evaluationNow.getTime() >= expiresAt) {
+      return {
+        allowed: false,
+        reason: 'Break-glass elevation has expired or is not time-bounded.',
+        maskedFields: [],
+      };
+    }
   }
+  const bypassScoping = user.isBreakGlass === true;
 
   // 3. Check Role Baseline & User Permissions (evaluates primary role and all multi-roles)
   const allUserRoles: EnterpriseRole[] = [user.role, ...(user.roles || [])];
@@ -462,92 +500,94 @@ export function evaluateAccess(
     };
   }
 
-  // 4. Site Scoping Check
-  const isGateScopedRole = user.role === 'SECURITY_GUARD' || user.role === 'GATE_OPERATOR';
-  if (isGateScopedRole && user.siteId && resource.siteId && user.siteId !== resource.siteId) {
-    return {
-      allowed: false,
-      reason: 'Security Guard is scoped strictly to home site gates.',
-      maskedFields: [],
-    };
-  }
-
-  // General site scoping for site-assigned users (excluding super/org admins)
-  if (
-    user.role !== 'SUPER_ADMIN' &&
-    user.role !== 'ORGANIZATION_ADMIN' &&
-    user.siteId &&
-    resource.siteId &&
-    user.siteId !== resource.siteId
-  ) {
-    if (!user.assignedSiteIds || !user.assignedSiteIds.includes(resource.siteId)) {
+  if (!bypassScoping) {
+    // 4. Site Scoping Check
+    const isGateScopedRole = user.role === 'SECURITY_GUARD' || user.role === 'GATE_OPERATOR';
+    if (isGateScopedRole && user.siteId && resource.siteId && user.siteId !== resource.siteId) {
       return {
         allowed: false,
-        reason: `User is scoped strictly to home site ${user.siteId} and lacks clearance for site ${resource.siteId}.`,
+        reason: 'Security Guard is scoped strictly to home site gates.',
         maskedFields: [],
       };
     }
-  }
 
-  // Multi-site access check if user has assigned sites list
-  if (user.assignedSiteIds && user.assignedSiteIds.length > 0 && resource.siteId) {
-    if (!user.assignedSiteIds.includes(resource.siteId)) {
-      return {
-        allowed: false,
-        reason: `User is not authorized for resource at site ${resource.siteId}.`,
-        maskedFields: [],
-      };
-    }
-  }
-
-  // Gate Scoping Check (Section 8 & 13)
-  if (user.assignedGateIds && user.assignedGateIds.length > 0 && resource.gateId) {
-    if (!user.assignedGateIds.includes(resource.gateId)) {
-      return {
-        allowed: false,
-        reason: `User is not authorized for gate ${resource.gateId}.`,
-        maskedFields: [],
-      };
-    }
-  }
-
-  // Zone Scoping Check (Section 8 & 13)
-  if (user.assignedZoneIds && user.assignedZoneIds.length > 0 && resource.zoneId) {
-    if (!user.assignedZoneIds.includes(resource.zoneId)) {
-      return {
-        allowed: false,
-        reason: `User is not authorized for zone ${resource.zoneId} (not in assigned zones).`,
-        maskedFields: [],
-      };
-    }
-  }
-
-  // Time-based Operational Window Check (Section 58)
-  if (resource.allowedTimeWindow) {
-    const accessTime = resource.evaluationTime || resource.timeOfAccess || new Date();
-    const currentHour = accessTime.getUTCHours();
-    const currentMinute = accessTime.getUTCMinutes();
-    const currentTimeMinutes = currentHour * 60 + currentMinute;
-
-    let startMinutes = 0;
-    let endMinutes = 24 * 60;
-
-    if (resource.allowedTimeWindow.startTime && resource.allowedTimeWindow.endTime) {
-      const [sh, sm] = resource.allowedTimeWindow.startTime.split(':').map(Number);
-      const [eh, em] = resource.allowedTimeWindow.endTime.split(':').map(Number);
-      startMinutes = sh * 60 + (sm || 0);
-      endMinutes = eh * 60 + (em || 0);
-    } else if (resource.allowedTimeWindow.startHour !== undefined && resource.allowedTimeWindow.endHour !== undefined) {
-      startMinutes = resource.allowedTimeWindow.startHour * 60;
-      endMinutes = resource.allowedTimeWindow.endHour * 60;
+    // General site scoping for site-assigned users (excluding super/org admins)
+    if (
+      user.role !== 'SUPER_ADMIN' &&
+      user.role !== 'ORGANIZATION_ADMIN' &&
+      user.siteId &&
+      resource.siteId &&
+      user.siteId !== resource.siteId
+    ) {
+      if (!user.assignedSiteIds || !user.assignedSiteIds.includes(resource.siteId)) {
+        return {
+          allowed: false,
+          reason: `User is scoped strictly to home site ${user.siteId} and lacks clearance for site ${resource.siteId}.`,
+          maskedFields: [],
+        };
+      }
     }
 
-    if (currentTimeMinutes < startMinutes || currentTimeMinutes >= endMinutes) {
-      return {
-        allowed: false,
-        reason: `Access denied: outside permitted operational hours (${startMinutes / 60}:00-${endMinutes / 60}:00).`,
-        maskedFields: [],
-      };
+    // Multi-site access check if user has assigned sites list
+    if (user.assignedSiteIds && user.assignedSiteIds.length > 0 && resource.siteId) {
+      if (!user.assignedSiteIds.includes(resource.siteId)) {
+        return {
+          allowed: false,
+          reason: `User is not authorized for resource at site ${resource.siteId}.`,
+          maskedFields: [],
+        };
+      }
+    }
+
+    // Gate Scoping Check (Section 8 & 13)
+    if (user.assignedGateIds && user.assignedGateIds.length > 0 && resource.gateId) {
+      if (!user.assignedGateIds.includes(resource.gateId)) {
+        return {
+          allowed: false,
+          reason: `User is not authorized for gate ${resource.gateId}.`,
+          maskedFields: [],
+        };
+      }
+    }
+
+    // Zone Scoping Check (Section 8 & 13)
+    if (user.assignedZoneIds && user.assignedZoneIds.length > 0 && resource.zoneId) {
+      if (!user.assignedZoneIds.includes(resource.zoneId)) {
+        return {
+          allowed: false,
+          reason: `User is not authorized for zone ${resource.zoneId} (not in assigned zones).`,
+          maskedFields: [],
+        };
+      }
+    }
+
+    // Time-based Operational Window Check (Section 58)
+    if (resource.allowedTimeWindow) {
+      const accessTime = resource.evaluationTime || resource.timeOfAccess || new Date();
+      const currentHour = accessTime.getUTCHours();
+      const currentMinute = accessTime.getUTCMinutes();
+      const currentTimeMinutes = currentHour * 60 + currentMinute;
+
+      let startMinutes = 0;
+      let endMinutes = 24 * 60;
+
+      if (resource.allowedTimeWindow.startTime && resource.allowedTimeWindow.endTime) {
+        const [sh, sm] = resource.allowedTimeWindow.startTime.split(':').map(Number);
+        const [eh, em] = resource.allowedTimeWindow.endTime.split(':').map(Number);
+        startMinutes = sh * 60 + (sm || 0);
+        endMinutes = eh * 60 + (em || 0);
+      } else if (resource.allowedTimeWindow.startHour !== undefined && resource.allowedTimeWindow.endHour !== undefined) {
+        startMinutes = resource.allowedTimeWindow.startHour * 60;
+        endMinutes = resource.allowedTimeWindow.endHour * 60;
+      }
+
+      if (currentTimeMinutes < startMinutes || currentTimeMinutes >= endMinutes) {
+        return {
+          allowed: false,
+          reason: `Access denied: outside permitted operational hours (${startMinutes / 60}:00-${endMinutes / 60}:00).`,
+          maskedFields: [],
+        };
+      }
     }
   }
 
@@ -653,14 +693,24 @@ export function maskRecord<T extends Record<string, unknown>>(
     return { ...record };
   }
 
-  const sanitized: Record<string, unknown> = { ...record };
-  for (const field of decision.maskedFields) {
-    if (field in sanitized) {
-      delete sanitized[field];
+  return redactFields(record, new Set(decision.maskedFields)) as T;
+}
+
+/** Removes masked fields at any depth, including inside arrays of nested records. */
+function redactFields(value: unknown, masked: Set<string>): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => redactFields(item, masked));
+  }
+  if (value === null || typeof value !== 'object' || value instanceof Date) {
+    return value;
+  }
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (!masked.has(key)) {
+      sanitized[key] = redactFields(child, masked);
     }
   }
-
-  return sanitized as T;
+  return sanitized;
 }
 
 /**

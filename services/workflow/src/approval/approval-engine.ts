@@ -143,7 +143,8 @@ export class ApprovalEngine {
     actorUser: UserContext
   ): Promise<{ task: ApprovalTask; decisionRecord: ApprovalActionRecord; isStageSatisfied: boolean }> {
     const task: ApprovalTask | null = this.workflowRepo.getTask(input.taskId);
-    if (!task) {
+    // Tasks from another tenant are indistinguishable from missing ones.
+    if (!task || task.tenantId !== actorUser.tenantId) {
       throw new Error(`Approval task '${input.taskId}' not found.`);
     }
 
@@ -163,8 +164,12 @@ export class ApprovalEngine {
 
     // 1. Self-Approval Restriction Check (Section 19)
     const allowSelfApproval = task.metadata?.allowSelfApproval === true;
-    const requesterId = input.requesterUserId || (task.metadata?.requesterUserId as string);
-    if (!allowSelfApproval && requesterId && actorUser.userId === requesterId) {
+    // The requester recorded on the task is authoritative; a caller-supplied value can only add
+    // a further identity to check, never replace the stored one.
+    const requesterIds = [task.metadata?.requesterUserId as string | undefined, input.requesterUserId].filter(
+      (id): id is string => typeof id === 'string' && id.length > 0
+    );
+    if (!allowSelfApproval && requesterIds.includes(actorUser.userId)) {
       throw new Error(
         `Segregation of Duties Violation: User '${actorUser.userId}' submitted this request and is prohibited from self-approving it.`
       );

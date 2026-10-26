@@ -56,8 +56,10 @@ export class ExportSecurityService {
     // 2. Validate tenant scoping on every single exported record (supports both camelCase and snake_case)
     const sanitizedRecords: Array<Record<string, unknown>> = [];
     for (const record of request.records) {
-      const recordTenant = (record['tenantId'] || record['tenant_id']) as string | undefined;
-      if (recordTenant && recordTenant !== user.tenantId && user.role !== 'SUPER_ADMIN') {
+      // Every record must positively belong to the caller's tenant under every alias it carries;
+      // records with no tenant marker are refused rather than assumed safe.
+      const recordTenants = [record['tenantId'], record['tenant_id']].filter(v => v !== undefined && v !== null);
+      if (recordTenants.length === 0 || recordTenants.some(t => t !== user.tenantId)) {
         throw new SecurityError(
           'AUTHORIZATION_DENIED',
           'Cross-tenant data export prohibited: attempted to include records from an unauthorized tenant boundary.'

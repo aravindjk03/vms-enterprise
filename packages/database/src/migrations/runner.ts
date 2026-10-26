@@ -39,8 +39,8 @@ export class MigrationRunner {
    */
   public async runMigrations(): Promise<{ schema: ParsedSchema; seedCount: number }> {
     // 1. Locate and read SQL migration files (prioritize canonical migrations/ directory)
-    const schemaSql = this.loadSqlFile(['../../migrations/001_initial_schema.sql', '../schema.sql']);
-    const seedsSql = this.loadSqlFile(['../../migrations/002_seed_data.sql', '../seeds.sql']);
+    const schemaSql = this.loadSqlFile(['../../migrations/001_initial_schema.sql']);
+    const seedsSql = this.loadSqlFile(['../../migrations/002_seed_data.sql']);
 
     // 2. Validate DDL against architectural requirements
     const parsedSchema = this.schemaValidator.parseSql(schemaSql);
@@ -90,7 +90,7 @@ export class MigrationRunner {
 
     for (const tableName of tableNames) {
       try {
-        totalRows += this.db.count(tableName);
+        totalRows += this.db.runAsSystem(() => this.db.count(tableName));
       } catch {
         // Ignore table access errors during status check
       }
@@ -109,6 +109,11 @@ export class MigrationRunner {
    * Parses and executes SQL statements statement-by-statement into RelationalDatabase
    */
   public applySeedsFromSql(sqlContent: string): number {
+    // Seed data spans tenants by design, so it runs in the trusted system scope.
+    return this.db.runAsSystem(() => this.applySeedStatements(sqlContent));
+  }
+
+  private applySeedStatements(sqlContent: string): number {
     let insertedRows = 0;
     const statements = this.splitSqlStatements(sqlContent);
 

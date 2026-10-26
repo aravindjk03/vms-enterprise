@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { RelationalDatabase } from '@vms/database';
-import type { UserContext } from '@vms/types';
+import type { OfflineActionSyncRecord, UserContext } from '@vms/types';
 import {
   evaluateAccess,
   ROLE_PERMISSIONS,
@@ -885,13 +885,14 @@ describe('Part 4: Enterprise Security and Identity Foundation Verification', () 
     const deviceService = new DeviceSecurityService();
 
     // 1. Register device
+    const deviceSecret = 'device-provisioning-secret-0123456789abcdef';
     deviceService.registerDevice({
       deviceId: 'GATE-TERM-01',
       deviceType: 'GATE_TERMINAL',
       siteId: SITE_A1,
       gateId: 'GATE-MAIN',
       isTrusted: true,
-    });
+    }, deviceSecret);
 
     // 2. Verify site mismatch fails
     const badSiteAuth = deviceService.authenticateDevice('GATE-TERM-01', SITE_A2);
@@ -924,9 +925,13 @@ describe('Part 4: Enterprise Security and Identity Foundation Verification', () 
     );
     assert.equal(validOffline.allowed, true);
 
-    // 5. Anti-passback / duplicate rejection during sync
+    // 5. Anti-passback / duplicate rejection during sync (records signed by the device)
+    const signed = (record: Omit<OfflineActionSyncRecord, 'signature'>): OfflineActionSyncRecord => ({
+      ...record,
+      signature: DeviceSecurityService.signOfflineRecord(record, deviceSecret),
+    });
     const syncResults = deviceService.reconcileOfflineBatch('GATE-TERM-01', [
-      {
+      signed({
         syncRecordId: 'SYNC-1',
         deviceId: 'GATE-TERM-01',
         siteId: SITE_A1,
@@ -935,9 +940,8 @@ describe('Part 4: Enterprise Security and Identity Foundation Verification', () 
         subjectIdentifier: 'worker-101',
         passId: 'PASS-OFFLINE-01',
         recordedAt: new Date(),
-        signature: 'sig-1',
-      },
-      {
+      }),
+      signed({
         syncRecordId: 'SYNC-2',
         deviceId: 'GATE-TERM-01',
         siteId: SITE_A1,
@@ -946,12 +950,23 @@ describe('Part 4: Enterprise Security and Identity Foundation Verification', () 
         subjectIdentifier: 'worker-101',
         passId: 'PASS-OFFLINE-01',
         recordedAt: new Date(),
-        signature: 'sig-2',
+      }),
+      {
+        // Forged record (unsigned override injected for another site)
+        syncRecordId: 'SYNC-3',
+        deviceId: 'GATE-TERM-01',
+        siteId: SITE_A2,
+        gateId: 'GATE-MAIN',
+        action: 'OFFLINE_GATE_OVERRIDE',
+        subjectIdentifier: 'intruder-1',
+        recordedAt: new Date(),
+        signature: 'forged',
       },
     ]);
 
     assert.equal(syncResults[0].status, 'RECONCILED');
     assert.equal(syncResults[1].status, 'DUPLICATE_REJECTED');
+    assert.equal(syncResults[2].status, 'CONFLICT_DETECTED');
   });
 
   // ==========================================================================

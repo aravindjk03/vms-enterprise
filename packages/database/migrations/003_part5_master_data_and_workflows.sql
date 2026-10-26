@@ -93,6 +93,32 @@ CREATE TABLE IF NOT EXISTS workflow_versions (
     CONSTRAINT uq_workflow_ver_def_num UNIQUE (definition_id, version_number)
 );
 
+CREATE TABLE IF NOT EXISTS workflow_stages (
+    stage_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    version_id UUID NOT NULL REFERENCES workflow_versions(version_id) ON DELETE CASCADE,
+    stage_code VARCHAR(32) NOT NULL,
+    stage_name VARCHAR(64) NOT NULL,
+    order_index INTEGER NOT NULL,
+    sla_minutes INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS workflow_transitions (
+    transition_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    version_id UUID NOT NULL REFERENCES workflow_versions(version_id) ON DELETE CASCADE,
+    from_stage_id UUID NOT NULL REFERENCES workflow_stages(stage_id) ON DELETE CASCADE,
+    to_stage_id UUID NOT NULL REFERENCES workflow_stages(stage_id) ON DELETE CASCADE,
+    trigger_action VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS workflow_conditions (
+    condition_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    transition_id UUID NOT NULL REFERENCES workflow_transitions(transition_id) ON DELETE CASCADE,
+    condition_expression TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS workflow_instances (
     instance_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
@@ -212,6 +238,15 @@ CREATE TABLE IF NOT EXISTS policy_definitions (
     CONSTRAINT uq_policy_def_tenant_code UNIQUE (tenant_id, code)
 );
 
+CREATE TABLE IF NOT EXISTS policy_versions (
+    version_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    policy_id UUID NOT NULL REFERENCES policy_definitions(policy_id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    rules JSONB NOT NULL DEFAULT '[]'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_policy_ver UNIQUE (policy_id, version_number)
+);
+
 CREATE TABLE IF NOT EXISTS policy_rules (
     rule_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     policy_id UUID NOT NULL REFERENCES policy_definitions(policy_id) ON DELETE CASCADE,
@@ -243,3 +278,4 @@ CREATE INDEX IF NOT EXISTS idx_workflow_instances_tenant ON workflow_instances(t
 CREATE INDEX IF NOT EXISTS idx_workflow_tasks_status ON workflow_tasks(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_outbox_pending ON workflow_outbox_events(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_delegation_active ON approval_delegations(tenant_id, delegate_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_approval_actions_instance ON approval_actions(instance_id, decision_timestamp);

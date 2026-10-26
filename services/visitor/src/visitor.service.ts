@@ -7,6 +7,7 @@
 
 import { randomUUID, createHmac } from 'node:crypto';
 import type { RelationalDatabase } from '@vms/database';
+import { deriveTenantSigningKey } from '@vms/config';
 import { TransportService } from '@vms/transport';
 import { GHGCalculationEngine, OrganizationalScopeRegistry } from '@vms/ghg';
 import type {
@@ -723,13 +724,15 @@ export class VisitorService {
     const host = this.db.findById('users', tx.host_user_id, tenantId);
     const site = this.db.findById('sites', tx.site_id, tenantId);
 
-    const secretKey = 'vms-epass-secure-hmac-token-secret-key';
-    const rawPayload = `${tenantId}:${tx.transaction_id}:${tx.reference_number}:${new Date(tx.scheduled_end).getTime()}`;
-    const token = createHmac('sha256', secretKey).update(rawPayload).digest('hex');
-
     const passId = randomUUID();
     const issuedAt = new Date();
     const expiresAt = new Date(tx.scheduled_end);
+
+    // Per-tenant key from EPASS_SIGNING_SECRET; the pass id makes every token unique and
+    // the expiry is bound into the signature.
+    const signingKey = deriveTenantSigningKey(tenantId, 'visitor');
+    const rawPayload = `${tenantId}:${passId}:${tx.transaction_id}:${tx.reference_number}:${expiresAt.getTime()}`;
+    const token = createHmac('sha256', signingKey).update(rawPayload).digest('base64url');
 
     const epass: VisitorEPass = {
       passId,
@@ -744,7 +747,7 @@ export class VisitorService {
       scheduledEnd: new Date(tx.scheduled_end),
       passStatus: 'ACTIVE',
       token,
-      qrPayload: `vms://epass/${tx.reference_number}?token=${token.substring(0, 16)}`,
+      qrPayload: `vms://epass/${tx.reference_number}?pass=${passId}&token=${token}`,
       issuedAt,
       expiresAt,
     };

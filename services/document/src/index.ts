@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type {
   UserContext,
   DocumentRetentionPolicy,
@@ -69,13 +69,27 @@ export class DocumentSecurityService {
    * Validates file upload: MIME type, extension, size limit, magic bytes, malware scan, and quarantine state.
    */
   public async validateUpload(payload: FileUploadPayload): Promise<FileValidationResult> {
-    // 1. File Size Check
-    if (payload.sizeBytes > DocumentSecurityService.MAX_FILE_SIZE) {
+    // 0. Storage path components must be plain identifiers (no traversal into other tenants)
+    const SAFE_PATH_SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
+    if (!SAFE_PATH_SEGMENT.test(payload.tenantId) || !SAFE_PATH_SEGMENT.test(payload.entityType)) {
       return {
         valid: false,
         quarantined: true,
         sanitizedFilename: payload.filename,
-        error: `File size exceeds allowed maximum limit of 25 MB.`,
+        error: 'Invalid tenant or entity type for document storage path.',
+      };
+    }
+
+    // 1. File Size Check (the actual buffer length is authoritative, not the declared size)
+    const actualSize = payload.buffer?.length ?? 0;
+    if (actualSize !== payload.sizeBytes || actualSize > DocumentSecurityService.MAX_FILE_SIZE) {
+      return {
+        valid: false,
+        quarantined: true,
+        sanitizedFilename: payload.filename,
+        error: actualSize !== payload.sizeBytes
+          ? 'Declared file size does not match uploaded content.'
+          : `File size exceeds allowed maximum limit of 25 MB.`,
       };
     }
 
@@ -180,7 +194,9 @@ export class DocumentSecurityService {
     const expectedPayload = `${documentId}:${storageKey}:${expiresTimestamp}:${userId}`;
     const expectedSig = createHmac('sha256', this.signingSecret).update(expectedPayload).digest('hex');
 
-    return signature === expectedSig;
+    const sigBuf = Buffer.from(String(signature));
+    const expectedBuf = Buffer.from(expectedSig);
+    return sigBuf.length === expectedBuf.length && timingSafeEqual(sigBuf, expectedBuf);
   }
 
   /**
