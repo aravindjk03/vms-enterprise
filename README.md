@@ -4,7 +4,8 @@
 [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-8.3-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38b2ac.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-286%20Passed-success.svg)](https://nodejs.org/api/test.html)
+[![Tests](https://img.shields.io/badge/Tests-286%20unit%20%2B%209%20integration-success.svg)](https://nodejs.org/api/test.html)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 
 **VMS Enterprise** is a production-grade, multi-tenant enterprise operations platform designed for large-scale multi-site manufacturing organizations, industrial plants, logistics hubs, and corporate campuses.
@@ -38,7 +39,8 @@ The platform is structured as a modular monolith with strict domain boundaries r
 ```
 vms-enterprise/
 ├── apps/
-│   └── web/                   # React 19 + TypeScript + Vite + Tailwind CSS enterprise console
+│   ├── api/                   # Fastify API: auth, sessions, tenant-scoped PostgreSQL access, serves the console
+│   └── web/                   # React 19 + TypeScript + Vite enterprise console
 ├── packages/
 │   ├── types/                 # Shared domain contracts, transaction envelopes, enums
 │   ├── validation/            # Zod validation schemas for all inputs and state transitions
@@ -59,7 +61,9 @@ vms-enterprise/
 │   ├── visitor/               # Visitor lifecycle, group booking, overstay SLA, Scope 3 Cat 6
 │   ├── customer/              # Customer audits, PPAP inspection workflow, bilateral NDA gating
 │   └── contractor/            # Vendor MSAs, headcount caps, craft roster, Scope 3 Cat 7 commuter carbon
-└── tests/                     # Automated unit, integration, and security test suites (286 tests)
+├── tests/                     # Unit, domain and security suites (286) + tests/integration (API + PostgreSQL)
+├── Dockerfile                 # Production image (API + console, non-root)
+└── docker-compose.yml         # PostgreSQL + migrations + API
 ```
 
 ---
@@ -115,50 +119,97 @@ vms-enterprise/
 
 ---
 
-## 🛠 Getting Started
+## 🛠 Running the Platform
 
-### Prerequisites
-- Node.js 20.x or higher
-- npm 10.x or higher
+### Runtime architecture
 
-### Installation
+```
+ Browser ──HTTPS──▶  API + web console (apps/api, Fastify, one container)
+                       │  per request: BEGIN; set_config('app.current_tenant_id', <tenant from JWT>, true)
+                       ▼
+                     PostgreSQL 16  ── row-level security on every tenant table,
+                                      append-only audit/gate/event ledgers
+```
+
+- **Authentication**: organization code + username + password → 15-minute access token (memory only) and a
+  rotating refresh token in an `HttpOnly; SameSite=Strict` cookie. Refresh-token reuse revokes every session of the user.
+  Accounts lock after 5 failed attempts; sign-in is rate limited per IP and per account.
+- **Tenant isolation is enforced by the database**: the API connects as a member of the `vms_app` role (no
+  `BYPASSRLS`, not the table owner) and refuses to start otherwise. A query without a tenant context returns nothing.
+- **Authorization**: roles and site assignments are re-read from the database on every request and evaluated by
+  `@vms/permissions` (RBAC/ABAC, site scoping, segregation of duties: a requester can never approve their own visit).
+- **Audit**: sign-ins, failures and every state change are appended to `audit_logs`, which nobody — including the
+  schema owner — can update or delete.
+
+### What is live and what is sample data
+
+| Area | Status |
+|---|---|
+| Sign-in, sessions, roles, site scoping | **Live** (PostgreSQL) |
+| Executive dashboard KPI strip | **Live** |
+| Visitor register: pre-register → approve/reject → gate check-in → check-out, cancel | **Live** |
+| Contractor companies, customer accounts, audit ledger | **Live** (read) |
+| All other module screens (analytics, ESG, materials, workflows, …) | Sample data, clearly labelled in the UI |
+
+Without an API (e.g. the GitHub Pages build) the console starts in **demo mode**: sample data everywhere and a
+role switcher for previewing personas.
+
+### Quick start with Docker Compose (recommended)
+
 ```bash
-# Clone the repository
-git clone https://github.com/aravindjk03/vms-enterprise.git
-cd vms-enterprise
+cp .example.env .env
+# set POSTGRES_PASSWORD, APP_DB_PASSWORD, JWT_SECRET, EPASS_SIGNING_SECRET  (openssl rand -base64 48)
+docker compose up -d --build          # db → migrate (one-shot) → api
+# create the first administrator (password is read from the environment, never from argv)
+docker compose run --rm -e BOOTSTRAP_PASSWORD='Choose-A-Str0ng!Passphrase' migrate \
+  node --import tsx packages/database/scripts/bootstrap-user.ts \
+  --tenant GLOBAL-MFG --username admin.detroit --role SUPER_ADMIN
+open http://localhost:8080             # organization code: GLOBAL-MFG
+```
 
-# Install dependencies
+The seed migration (`002_seed_data.sql`) creates the demo tenant `GLOBAL-MFG` with sites, gates and users
+(`admin.detroit`, `guard.detroit`, `host.mary`, `esg.officer`); none of them can sign in until a password is set
+with `db:bootstrap-user`. Put a TLS-terminating reverse proxy in front for real deployments and set `TRUST_PROXY=true`.
+
+### Local development (without Docker)
+
+Prerequisites: Node.js 22+, PostgreSQL 16+.
+
+```bash
 npm install
+export MIGRATION_DATABASE_URL=postgresql://<owner>@localhost:5432/vms_enterprise_db
+APP_DB_USER=vms_api APP_DB_PASSWORD='<16+ chars>' npm run db:migrate -- --create-app-user
+BOOTSTRAP_PASSWORD='<policy-compliant>' npm run db:bootstrap-user -- --tenant GLOBAL-MFG --username admin.detroit --role SUPER_ADMIN
+
+npm run build:web                       # console served by the API from dist/
+DATABASE_URL=postgresql://vms_api:<password>@localhost:5432/vms_enterprise_db \
+WEB_DIST_DIR=dist npm run api:dev       # http://localhost:8080  (NODE_ENV=development: random dev secrets)
+
+npm run dev                             # optional: Vite UI on :3000 in demo mode
 ```
 
-### Running the Development Server
-```bash
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+| Command | Purpose |
+|---|---|
+| `npm run db:migrate` | Apply pending migrations (`--status` to list, `--create-app-user` to create/rotate the runtime role) |
+| `npm run db:bootstrap-user` | Set a user's password (policy-checked) and optionally grant a role |
+| `npm run api:dev` / `npm run api:start` | Run the API (+ web console) |
+| `npm run build` | Typecheck and build the web console |
+| `npm test` | 286 unit / domain tests |
+| `npm run test:integration` | API + PostgreSQL end-to-end tests (needs `INTEGRATION_DATABASE_URL` of a role that can create databases) |
 
-### Running Automated Tests
-```bash
-# Execute the full 286-test test suite across all 22 test suites
-npm test
+Migrations are recorded in `schema_migrations` with a SHA-256 checksum; editing an applied migration is refused —
+add a new numbered file instead. Do not run `tsc` without `--noEmit`: it writes `.js` files next to the sources and
+Vite would serve those stale files instead of the TypeScript.
 
-# Run TypeScript typecheck
-npm run typecheck
-```
+### Deployment
 
-### Production Build
-```bash
-npm run build      # typecheck + production bundle into dist/
-npm run preview    # serve the production bundle on http://localhost:3000
-```
+- **Container**: `Dockerfile` builds one non-root image (API + console) with a health check on `/api/health`;
+  readiness (`/api/ready`) also verifies the database and that no migration is pending.
+- **CI** (`.github/workflows/deploy.yml`): dependency audit, typecheck, unit tests, integration tests against a
+  PostgreSQL 16 service, web build and Docker image build on every push and pull request.
+- **GitHub Pages**: pushes to `main` publish the static demo console (Settings → Pages → Source: GitHub Actions).
 
-> Do not run `tsc` without `--noEmit`: it writes `.js` files next to the `.ts` sources, and Vite resolves
-> `./App.js` imports to those stale files instead of the TypeScript source. They are git-ignored.
-
-### Deployment (GitHub Pages)
-`.github/workflows/deploy.yml` typechecks, tests and builds on every push and PR, and deploys `dist/`
-to GitHub Pages on pushes to `main`. One-time setup: **Settings → Pages → Source: GitHub Actions**.
-The build uses relative asset paths, so `dist/` can also be dropped onto any static host (Netlify, Vercel, S3, Nginx).
+See [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) for the security review and remediation log.
 
 ---
 
@@ -177,10 +228,12 @@ The build uses relative asset paths, so `dist/` can also be dropped onto any sta
 
 ## 📊 Verification & Test Metrics
 
-- **Total Test Suites**: 22 suites
-- **Total Automated Tests**: 286 passed, 0 failed, 0 skipped
+- **Unit / domain tests**: 286 passed across 22 suites (`npm test`)
+- **Integration tests**: 9 end-to-end scenarios on real PostgreSQL — migrations & drift detection, RLS, privileged
+  role refusal, login lockout, visitor lifecycle with segregation of duties, cross-tenant isolation, refresh-token
+  rotation/reuse, input validation and security headers (`npm run test:integration`)
 - **TypeScript Typecheck**: 0 errors (`tsc --noEmit`)
-- **Vite Production Build**: 471ms compilation time
+- **Dependencies**: `npm audit` — 0 known vulnerabilities
 - **Architecture Documentation**: 60+ documents with 100+ Mermaid diagrams
 
 ---

@@ -88,15 +88,32 @@ import { RulesEngineView } from './views/RulesEngineView.js';
 import { VisitorManagementView, type VisitorSubView } from './views/visitor/VisitorManagementView.js';
 import { CustomerManagementView, type CustomerSubView } from './views/customer/CustomerManagementView.js';
 import { ContractorManagementView, type ContractorSubView } from './views/contractor/ContractorManagementView.js';
+import { LiveKpiStrip, LiveTableView, LiveVisitorsView, renderDate, renderStatus } from './views/live/LiveViews.js';
+import type { SessionUser } from './api/client.js';
 
 export interface AppProps {
   initialRoute?: string;
   initialRole?: EnterpriseRole;
+  /** Present when signed in against the API; absent in the static demo build. */
+  session?: {
+    user: SessionUser;
+    onSignOut: () => void;
+  };
 }
+
+/** Visitor routes that map onto a status filter of the live register. */
+const LIVE_VISITOR_FILTERS: Record<string, string> = {
+  '/visitors/approvals': 'PENDING',
+  '/visitors/expected': 'APPROVED',
+  '/visitors/inside': 'ON_PREMISES',
+  '/visitors/completed': 'COMPLETED',
+  '/visitors/cancelled': 'CANCELLED',
+};
 
 export const App: React.FC<AppProps> = ({ 
   initialRoute = '/dashboard', 
-  initialRole = 'SUPER_ADMIN' 
+  initialRole = 'SUPER_ADMIN',
+  session,
 }) => {
   // Navigation & View Routing State
   const [activeRoute, setActiveRoute] = useState<string>(initialRoute);
@@ -104,7 +121,8 @@ export const App: React.FC<AppProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Authenticated Role & Scope State
-  const [activeRole, setActiveRole] = useState<EnterpriseRole>(initialRole);
+  // Signed-in sessions take the role the server assigned; the persona switcher exists only in the demo.
+  const [activeRole, setActiveRole] = useState<EnterpriseRole>(session?.user.role ?? initialRole);
   const [activeSiteContext, setActiveSiteContext] = useState<SiteContextOption>(DEMO_SITES[0]);
 
   // Command Palette & Global Search State
@@ -551,7 +569,95 @@ export const App: React.FC<AppProps> = ({
   ];
 
   // View Router Dispatcher (Section 41 Page Inventory)
+  const renderLiveContent = (user: SessionUser): React.ReactNode | null => {
+    if (activeRoute === '/dashboard') {
+      return (
+        <>
+          <LiveKpiStrip />
+          <SampleDataNotice text="The analytics panels below are illustrative and not yet connected to live data." />
+          <ExecutiveDashboardView />
+        </>
+      );
+    }
+    if (activeRoute.startsWith('/visitors')) {
+      return (
+        <LiveVisitorsView
+          user={user}
+          initialStatus={LIVE_VISITOR_FILTERS[activeRoute] ?? ''}
+          openRegister={activeRoute === '/visitors/new' || activeRoute === '/visitors/walk-in'}
+        />
+      );
+    }
+    if (activeRoute === '/contractors/companies') {
+      return (
+        <LiveTableView
+          title="Contractor companies"
+          subtitle="Registered vendor companies and their work-order volume."
+          path="/api/v1/contractors/companies"
+          columns={[
+            { key: 'vendorCode', label: 'Vendor code' },
+            { key: 'name', label: 'Company' },
+            { key: 'classification', label: 'Classification' },
+            { key: 'safetyRating', label: 'Safety rating' },
+            { key: 'insuranceExpiry', label: 'Insurance expiry', render: renderDate },
+            { key: 'workOrders', label: 'Work orders' },
+            { key: 'status', label: 'Status', render: renderStatus },
+          ]}
+        />
+      );
+    }
+    if (activeRoute === '/customers/accounts') {
+      return (
+        <LiveTableView
+          title="Customer accounts"
+          subtitle="Customer organizations with visit and NDA defaults."
+          path="/api/v1/customers/accounts"
+          columns={[
+            { key: 'accountCode', label: 'Account code' },
+            { key: 'name', label: 'Customer' },
+            { key: 'tier', label: 'Tier' },
+            { key: 'classification', label: 'Classification' },
+            { key: 'ndaRequired', label: 'NDA required', render: v => (v ? 'Yes' : 'No') },
+            { key: 'status', label: 'Status', render: renderStatus },
+          ]}
+        />
+      );
+    }
+    if (activeRoute === '/admin/audit') {
+      return (
+        <LiveTableView
+          title="Audit ledger"
+          subtitle="Append-only record of sign-ins and every state change (cannot be edited or deleted)."
+          path="/api/v1/audit-logs?limit=200"
+          columns={[
+            { key: 'timestamp', label: 'Time', render: renderDate },
+            { key: 'action', label: 'Action' },
+            { key: 'actorRole', label: 'Actor role' },
+            { key: 'entityType', label: 'Entity' },
+            { key: 'entityId', label: 'Entity ID' },
+            { key: 'reason', label: 'Reason' },
+          ]}
+        />
+      );
+    }
+    return null;
+  };
+
   const renderMainContent = () => {
+    if (session && !selectedDetailItem) {
+      const live = renderLiveContent(session.user);
+      if (live) return live;
+      return (
+        <>
+          <SampleDataNotice text="This module is not yet connected to live data; figures shown are sample data." />
+          {renderModuleContent()}
+        </>
+      );
+    }
+    return renderModuleContent();
+  };
+
+  const renderModuleContent = () => {
     // If Detail Page is Active (Section 22)
     if (selectedDetailItem) {
       const it = selectedDetailItem.item;
@@ -1254,7 +1360,37 @@ export const App: React.FC<AppProps> = ({
             }}
           />
 
-          {/* Persona Role Switcher for Testing */}
+          {session ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, maxWidth: '200px', color: '#ffffff' }}
+                title={`${session.user.fullName} (${session.user.username})`}
+              >
+                <span style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {session.user.fullName}
+                </span>
+                <span style={{ fontSize: '10px', color: colors.slate[400], whiteSpace: 'nowrap' }}>{session.user.role.replace(/_/g, ' ')}</span>
+              </span>
+              <button
+                type="button"
+                onClick={session.onSignOut}
+                style={{
+                  backgroundColor: colors.slate[800],
+                  color: '#ffffff',
+                  border: `1px solid ${colors.slate[700]}`,
+                  padding: '4px 10px',
+                  borderRadius: radius.sm,
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+          /* Persona Role Switcher (demo build only) */
           <select
             aria-label="Switch User Persona Role"
             value={activeRole}
@@ -1280,6 +1416,7 @@ export const App: React.FC<AppProps> = ({
             <option value="AUDITOR">Role: Compliance Auditor</option>
             <option value="MANAGEMENT">Role: Executive Management</option>
           </select>
+          )}
         </div>
       </header>
 
@@ -1419,6 +1556,9 @@ export const App: React.FC<AppProps> = ({
           </nav>
 
           {/* Dynamic View Component */}
+          {!session && (
+            <SampleDataNotice text="Demo mode: no API server is connected, so every screen shows sample data and the role switcher is for preview only." />
+          )}
           {renderMainContent()}
         </main>
       </div>
@@ -1695,3 +1835,20 @@ export const App: React.FC<AppProps> = ({
     </div>
   );
 };
+
+const SampleDataNotice: React.FC<{ text: string }> = ({ text }) => (
+  <div
+    role="note"
+    style={{
+      fontSize: '12px',
+      color: colors.status.warning.fg,
+      backgroundColor: colors.status.warning.bg,
+      border: `1px solid ${colors.status.warning.border}`,
+      borderRadius: radius.md,
+      padding: '8px 12px',
+      marginBottom: '12px',
+    }}
+  >
+    {text}
+  </div>
+);

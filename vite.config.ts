@@ -9,8 +9,8 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
   plugins: [react()],
   root: 'apps/web',
-  // Relative asset URLs so the static build works from any host path (e.g. GitHub Pages /vms-enterprise/)
-  base: './',
+  // Served by the API at '/'. The static demo build (GitHub Pages under /vms-enterprise/) sets VITE_BASE=./
+  base: process.env.VITE_BASE || '/',
   resolve: {
     alias: {
       '@vms/types': path.resolve(__dirname, 'packages/types/src/index.ts'),
