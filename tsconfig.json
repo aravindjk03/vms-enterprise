@@ -28,7 +28,8 @@
       "@vms/workflow": ["./services/workflow/src/index.ts"],
       "@vms/visitor": ["./services/visitor/src/index.ts"],
       "@vms/customer": ["./services/customer/src/index.ts"],
-      "@vms/contractor": ["./services/contractor/src/index.ts"]
+      "@vms/contractor": ["./services/contractor/src/index.ts"],
+      "@vms/service": ["./services/service/src/index.ts"]
     }
   },
   "include": [

@@ -45,6 +45,14 @@ export type PermissionAction =
   | 'POLICY_EVALUATE'
   | 'TASK_READ'
   | 'TASK_MANAGE'
+  // Service / Work Management (Part 9)
+  | 'SERVICE_REQUEST_CREATE'  // raise a service request (any employee role that needs work done)
+  | 'SERVICE_APPROVE'         // approve/reject requests, work orders and recurring schedules
+  | 'SERVICE_MANAGE'          // providers, technicians, work orders, assignments, schedules
+  | 'SERVICE_EXECUTE'         // record work progress milestones and completion submission
+  | 'SERVICE_ARRIVAL_RECORD'  // record reported technician arrival / departure at reception or gate
+  | 'SERVICE_ACCEPT'          // accept or return submitted completion
+  | 'SERVICE_PREREQ_VERIFY'   // manually verify safety prerequisites while Safety service is not integrated
   | PermissionKey;
 
 /**
@@ -62,6 +70,7 @@ export const PERMISSION_NORMALIZATION_MAP: Record<string, string[]> = {
   CONTRACTOR_APPROVE: ['contractor.approve'],
   CONTRACTOR_GATE_CHECKIN: ['contractor.checkin', 'contractor.gate', 'gate.actuate'],
   SERVICE_READ: ['service.read'],
+  SERVICE_APPROVE: ['service.approve'],
   SERVICE_WRITE: ['service.create', 'service.update'],
   MATERIAL_READ: ['material.read'],
   MATERIAL_WRITE: ['material.create', 'material.update', 'material.gate_entry'],
@@ -96,6 +105,13 @@ export const PERMISSION_NORMALIZATION_MAP: Record<string, string[]> = {
  * Comprehensive Enterprise Role-to-Permissions Matrix (18 Enterprise Roles)
  */
 export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
+  SERVICE_MANAGER: [
+    'SERVICE_READ', 'SERVICE_WRITE', 'SERVICE_REQUEST_CREATE', 'SERVICE_APPROVE', 'SERVICE_MANAGE',
+    'SERVICE_EXECUTE', 'SERVICE_ARRIVAL_RECORD', 'SERVICE_ACCEPT',
+    'DOCUMENT_READ_STANDARD', 'VEHICLE_READ', 'GATE_VIEW', 'ESG_ACTIVITY_READ',
+    'TASK_READ', 'APPROVAL_READ', 'APPROVAL_ACTION',
+    'service.read', 'service.create', 'service.approve', 'document.read', 'vehicle.read', 'gate.read', 'esg.activity.read',
+  ],
   SUPER_ADMIN: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
     'CUSTOMER_READ', 'CUSTOMER_WRITE', 'CUSTOMER_APPROVE',
@@ -131,6 +147,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'approval.read', 'approval.action', 'approval.delegate',
     'policy.manage', 'policy.validate', 'policy.evaluate',
     'task.read', 'task.manage',
+    'SERVICE_REQUEST_CREATE', 'SERVICE_APPROVE', 'SERVICE_MANAGE', 'SERVICE_EXECUTE', 'SERVICE_ARRIVAL_RECORD', 'SERVICE_ACCEPT', 'SERVICE_PREREQ_VERIFY',
   ],
   ORGANIZATION_ADMIN: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
@@ -153,6 +170,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'masterdata.read', 'masterdata.manage',
     'approval.read', 'approval.action', 'approval.delegate',
     'task.read', 'task.manage',
+    'SERVICE_READ', 'SERVICE_MANAGE',
   ],
   SITE_ADMIN: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
@@ -178,6 +196,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'masterdata.read', 'masterdata.manage',
     'approval.read', 'approval.action', 'approval.delegate',
     'task.read', 'task.manage',
+    'SERVICE_READ', 'SERVICE_REQUEST_CREATE', 'SERVICE_APPROVE', 'SERVICE_MANAGE', 'SERVICE_EXECUTE', 'SERVICE_ARRIVAL_RECORD', 'SERVICE_ACCEPT', 'SERVICE_PREREQ_VERIFY',
   ],
   SECURITY_MANAGER: [
     'VISITOR_READ', 'VISITOR_APPROVE',
@@ -198,6 +217,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'document.read', 'document.verify',
     'emergency.read', 'emergency.declare', 'emergency.manage',
     'audit.read',
+    'SERVICE_READ', 'SERVICE_ARRIVAL_RECORD',
   ],
   SECURITY_GUARD: [
     'VISITOR_READ',
@@ -215,6 +235,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'vehicle.read', 'vehicle.manage',
     'gate.read', 'gate.entry', 'gate.exit', 'gate.actuate',
     'document.read',
+    'SERVICE_ARRIVAL_RECORD',
   ],
   GATE_OPERATOR: [
     'VISITOR_READ',
@@ -232,6 +253,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'vehicle.read', 'vehicle.manage',
     'gate.read', 'gate.entry', 'gate.exit', 'gate.actuate',
     'document.read',
+    'SERVICE_READ', 'SERVICE_ARRIVAL_RECORD',
   ],
   RECEPTIONIST: [
     'VISITOR_READ', 'VISITOR_WRITE',
@@ -242,12 +264,14 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'customer.read', 'customer.create',
     'gate.read',
     'document.read', 'document.upload',
+    'SERVICE_READ', 'SERVICE_ARRIVAL_RECORD',
   ],
   HOST: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
     'CUSTOMER_READ', 'CUSTOMER_WRITE', 'CUSTOMER_APPROVE',
     'visitor.read', 'visitor.create', 'visitor.update', 'visitor.approve',
     'customer.read', 'customer.create', 'customer.approve',
+    'SERVICE_REQUEST_CREATE',
   ],
   EHS_MANAGER: [
     'CONTRACTOR_READ',
@@ -262,6 +286,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'gate.read',
     'emergency.read', 'emergency.declare', 'emergency.manage',
     'esg.activity.read',
+    'SERVICE_READ', 'SERVICE_PREREQ_VERIFY',
   ],
   HR: [
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
@@ -315,6 +340,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'contractor.read',
     'material.read',
     'vehicle.read',
+    'SERVICE_READ',
   ],
   ESG_METHODOLOGY_ADMIN: [
     'ESG_ACTIVITY_READ',
@@ -339,6 +365,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'material.read',
     'esg.activity.read',
     'audit.read', 'audit.export',
+    'SERVICE_READ',
   ],
   IT_ADMIN: [
     'SYSTEM_ADMIN_MANAGE',
@@ -366,6 +393,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'gate.read',
     'esg.activity.read',
     'audit.read',
+    'SERVICE_READ',
   ],
 };
 

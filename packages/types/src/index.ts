@@ -548,7 +548,8 @@ export type EnterpriseRole =
   | 'ESG_METHODOLOGY_ADMIN'
   | 'AUDITOR' 
   | 'IT_ADMIN' 
-  | 'MANAGEMENT';
+  | 'MANAGEMENT'
+  | 'SERVICE_MANAGER';
 
 export type DataClassificationLevel = 
   | 'PUBLIC' 
