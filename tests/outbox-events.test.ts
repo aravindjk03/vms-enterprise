@@ -46,7 +46,7 @@ describe('Part 5: Transactional Outbox Pattern & Event Reliability (Sections 27,
     const remainingPending = workflowRepo.listPendingOutboxEvents(tenantId);
     assert.strictEqual(remainingPending.length, 0);
 
-    const allEvents = (workflowRepo as any).db.findMany('workflow_outbox_events', { tenant_id: tenantId });
+    const allEvents = (workflowRepo as any).db.findMany('workflow_outbox_events', { tenant_id: tenantId }, tenantId);
     assert.strictEqual(allEvents[0].status, 'DISPATCHED');
     assert.ok(allEvents[0].dispatched_at);
   });
@@ -75,7 +75,7 @@ describe('Part 5: Transactional Outbox Pattern & Event Reliability (Sections 27,
     assert.strictEqual(result.failed, 1);
 
     // Event should still be PENDING with retryCount = 1
-    const rawEvent = (workflowRepo as any).db.findById('workflow_outbox_events', event.outboxId);
+    const rawEvent = (workflowRepo as any).db.findById('workflow_outbox_events', event.outboxId, tenantId);
     assert.strictEqual(rawEvent.status, 'PENDING');
     assert.strictEqual(rawEvent.retry_count, 1);
     assert.strictEqual(rawEvent.error_details, 'Connection timeout to upstream message broker');
@@ -87,7 +87,7 @@ describe('Part 5: Transactional Outbox Pattern & Event Reliability (Sections 27,
     const targetEvent = pendingEvents[0];
     (workflowRepo as any).db.update('workflow_outbox_events', targetEvent.outbox_id || targetEvent.outboxId, {
       retry_count: 4,
-    });
+    }, tenantId);
 
     const failingBus = {
       publish: async () => {
@@ -101,7 +101,7 @@ describe('Part 5: Transactional Outbox Pattern & Event Reliability (Sections 27,
     assert.strictEqual(result.failed, 1);
 
     // Status is now FAILED
-    const updated = (workflowRepo as any).db.findById('workflow_outbox_events', targetEvent.outbox_id || targetEvent.outboxId);
+    const updated = (workflowRepo as any).db.findById('workflow_outbox_events', targetEvent.outbox_id || targetEvent.outboxId, tenantId);
     assert.strictEqual(updated.status, 'FAILED');
     assert.strictEqual(updated.retry_count, 5);
   });

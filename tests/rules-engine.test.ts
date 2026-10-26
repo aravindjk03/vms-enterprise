@@ -268,7 +268,7 @@ describe('Part 5: RuleEvaluator & Precedence Engine (Sections 12, 33)', () => {
     // Evaluation record in database
     const evals = (policyRepo as any).db.findMany('policy_evaluation_records', {
       transaction_id: 'TXN-HW-01',
-    });
+    }, tenantId);
     assert.strictEqual(evals.length, 1);
     assert.strictEqual(evals[0].action_result, 'REQUIRE_APPROVAL');
   });

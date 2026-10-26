@@ -90,7 +90,7 @@ export class MigrationRunner {
 
     for (const tableName of tableNames) {
       try {
-        totalRows += this.db.count(tableName);
+        totalRows += this.db.runAsSystem(() => this.db.count(tableName));
       } catch {
         // Ignore table access errors during status check
       }
@@ -109,6 +109,11 @@ export class MigrationRunner {
    * Parses and executes SQL statements statement-by-statement into RelationalDatabase
    */
   public applySeedsFromSql(sqlContent: string): number {
+    // Seed data spans tenants by design, so it runs in the trusted system scope.
+    return this.db.runAsSystem(() => this.applySeedStatements(sqlContent));
+  }
+
+  private applySeedStatements(sqlContent: string): number {
     let insertedRows = 0;
     const statements = this.splitSqlStatements(sqlContent);
 

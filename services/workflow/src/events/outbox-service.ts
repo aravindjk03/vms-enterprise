@@ -36,7 +36,11 @@ export class TransactionalOutboxService {
    * Processes all pending outbox events and reliably publishes them to the event bus.
    */
   public async dispatchPendingEvents(tenantId?: string): Promise<{ dispatched: number; failed: number }> {
-    const pending = this.workflowRepo.listPendingOutboxEvents(tenantId);
+    // Without a tenant this is the platform-wide relay sweep, an explicit system-scope operation.
+    const db = (this.workflowRepo as any).db;
+    const pending = tenantId
+      ? this.workflowRepo.listPendingOutboxEvents(tenantId)
+      : db.runAsSystem(() => this.workflowRepo.listPendingOutboxEvents());
     let dispatched = 0;
     let failed = 0;
 
