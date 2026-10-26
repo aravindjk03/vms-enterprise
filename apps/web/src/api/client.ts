@@ -113,7 +113,10 @@ export async function logout(): Promise<void> {
   }).catch(() => undefined);
 }
 
-export async function apiRequest<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  init: { method?: string; body?: unknown; idempotencyKey?: string } = {}
+): Promise<T> {
   const send = () =>
     fetch(`${API_BASE}${path}`, {
       method: init.method ?? 'GET',
@@ -121,6 +124,8 @@ export async function apiRequest<T>(path: string, init: { method?: string; body?
       headers: {
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        // Retries of the same submission reuse the key, so the server applies it once.
+        ...(init.idempotencyKey ? { 'Idempotency-Key': init.idempotencyKey } : {}),
       },
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
     });

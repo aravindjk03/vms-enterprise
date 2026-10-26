@@ -89,7 +89,8 @@ import { VisitorManagementView, type VisitorSubView } from './views/visitor/Visi
 import { CustomerManagementView, type CustomerSubView } from './views/customer/CustomerManagementView.js';
 import { ContractorManagementView, type ContractorSubView } from './views/contractor/ContractorManagementView.js';
 import { LiveKpiStrip, LiveTableView, LiveVisitorsView, renderDate, renderStatus } from './views/live/LiveViews.js';
-import type { SessionUser } from './api/client.js';
+import { ServiceModule, serviceNavFor } from './views/live/service/ServiceModule.js';
+import { apiRequest, type SessionUser } from './api/client.js';
 
 export interface AppProps {
   initialRoute?: string;
@@ -124,6 +125,25 @@ export const App: React.FC<AppProps> = ({
   // Signed-in sessions take the role the server assigned; the persona switcher exists only in the demo.
   const [activeRole, setActiveRole] = useState<EnterpriseRole>(session?.user.role ?? initialRole);
   const [activeSiteContext, setActiveSiteContext] = useState<SiteContextOption>(DEMO_SITES[0]);
+  // Signed in: the site switcher lists the sites the server says this user may access (never demo sites).
+  const [liveSites, setLiveSites] = useState<SiteContextOption[]>([]);
+  useEffect(() => {
+    if (!session) return;
+    apiRequest<{ items: Array<{ siteId: string; name: string }> }>('/api/v1/sites')
+      .then(r => {
+        const options = r.items.map(site => ({
+          organizationId: session.user.tenantId,
+          organizationName: 'Your sites',
+          siteId: site.siteId,
+          siteName: site.name,
+        }));
+        setLiveSites(options);
+        const preferred = options.find(o => o.siteId === session.user.defaultSiteId) ?? options[0];
+        if (preferred) setActiveSiteContext(preferred);
+      })
+      .catch(() => setLiveSites([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user.userId]);
 
   // Command Palette & Global Search State
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
@@ -154,12 +174,12 @@ export const App: React.FC<AppProps> = ({
   }, []);
 
   // Complete 18-Domain Navigation Hierarchy (Sections 5 & 6)
-  const navDomains = [
+  const baseNavDomains = [
     {
       id: 'dashboard',
       label: 'Dashboard',
       icon: <LayoutDashboard size={18} />,
-      roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER', 'SECURITY_GUARD', 'RECEPTIONIST', 'HOST', 'EHS_MANAGER', 'ESG_MANAGER', 'AUDITOR', 'MANAGEMENT'],
+      roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER', 'SECURITY_GUARD', 'RECEPTIONIST', 'HOST', 'EHS_MANAGER', 'ESG_MANAGER', 'AUDITOR', 'MANAGEMENT', 'SERVICE_MANAGER'],
       items: [
         { route: '/dashboard', label: 'Executive Dashboard' },
         { route: '/dashboard/operations', label: 'Operations Dashboard' },
@@ -170,7 +190,7 @@ export const App: React.FC<AppProps> = ({
       id: 'tasks',
       label: 'Task Center',
       icon: <CheckCircle2 size={18} />,
-      roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER', 'SECURITY_GUARD', 'RECEPTIONIST', 'HOST', 'EHS_MANAGER', 'ESG_MANAGER', 'AUDITOR', 'MANAGEMENT'],
+      roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'SECURITY_MANAGER', 'SECURITY_GUARD', 'RECEPTIONIST', 'HOST', 'EHS_MANAGER', 'ESG_MANAGER', 'AUDITOR', 'MANAGEMENT', 'SERVICE_MANAGER'],
       items: [
         { route: '/tasks', label: 'Pending Approvals' },
         { route: '/tasks/delegated', label: 'Delegated Tasks' },
@@ -265,7 +285,7 @@ export const App: React.FC<AppProps> = ({
       id: 'services',
       label: 'Service / Work',
       icon: <Wrench size={18} />,
-      roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'EHS_MANAGER', 'MANAGEMENT'],
+      roles: ['SUPER_ADMIN', 'SITE_ADMIN', 'EHS_MANAGER', 'MANAGEMENT', 'SERVICE_MANAGER'],
       items: [
         { route: '/services', label: 'Service Requests' },
         { route: '/services/technicians', label: 'Technicians' },
@@ -453,8 +473,15 @@ export const App: React.FC<AppProps> = ({
     },
   ];
 
-  // Role-aware visibility filtering (Section 6)
-  const visibleDomains = navDomains.filter((d) => d.roles.includes(activeRole));
+  // Signed in: the Service module's menu comes from the permissions the server granted this user.
+  const navDomains = session
+    ? baseNavDomains.map((d) => (d.id === 'services' ? { ...d, items: serviceNavFor(session.user) } : d))
+    : baseNavDomains;
+
+  // Role-aware visibility filtering (Section 6). Live Service visibility is permission-driven.
+  const visibleDomains = navDomains.filter((d) =>
+    session && d.id === 'services' ? d.items.length > 0 : d.roles.includes(activeRole)
+  );
 
   // Breadcrumbs Generator
   const getBreadcrumbs = () => {
@@ -578,6 +605,9 @@ export const App: React.FC<AppProps> = ({
           <ExecutiveDashboardView />
         </>
       );
+    }
+    if (activeRoute.startsWith('/services')) {
+      return <ServiceModule route={activeRoute} user={user} navigate={setActiveRoute} />;
     }
     if (activeRoute.startsWith('/visitors')) {
       return (
@@ -1236,11 +1266,13 @@ export const App: React.FC<AppProps> = ({
             </strong>
           </div>
 
-          <ContextSwitcher
-            currentContext={activeSiteContext}
-            availableSites={DEMO_SITES}
-            onSelectContext={setActiveSiteContext}
-          />
+          {(!session || liveSites.length > 0) && (
+            <ContextSwitcher
+              currentContext={activeSiteContext}
+              availableSites={session ? liveSites : DEMO_SITES}
+              onSelectContext={setActiveSiteContext}
+            />
+          )}
         </div>
 
         {/* Center: Global Search & Command Palette Trigger (Section 8 & 9) */}

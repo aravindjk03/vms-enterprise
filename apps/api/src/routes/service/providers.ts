@@ -78,6 +78,17 @@ export async function registerProviderRoutes(app: FastifyInstance, ctx: RouteCon
     })
   );
 
+  // Internal staff who can own service work (maintenance leads, provider owners).
+  app.get('/api/v1/service/staff', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      authorize(user, 'SERVICE_MANAGE');
+      const { rows } = await tx.query(
+        `SELECT user_id AS "userId", full_name AS "fullName" FROM users WHERE is_active AND status = 'ACTIVE' ORDER BY full_name LIMIT 500`
+      );
+      return { items: rows };
+    })
+  );
+
   app.get('/api/v1/service/providers', async request =>
     ctx.asUser(request, async (tx, user) => {
       authorize(user, 'SERVICE_READ');

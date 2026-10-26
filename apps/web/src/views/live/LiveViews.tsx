@@ -7,14 +7,14 @@ import { ApiError, apiRequest, type SessionUser } from '../../api/client.js';
 // Shared primitives
 // ---------------------------------------------------------------------------
 
-const card: React.CSSProperties = {
+export const card: React.CSSProperties = {
   backgroundColor: '#ffffff',
   border: `1px solid ${colors.slate[200]}`,
   borderRadius: radius.lg,
   boxShadow: shadows.card,
 };
 
-const th: React.CSSProperties = {
+export const th: React.CSSProperties = {
   textAlign: 'left',
   fontSize: '11px',
   fontWeight: 700,
@@ -26,7 +26,7 @@ const th: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-const td: React.CSSProperties = {
+export const td: React.CSSProperties = {
   fontSize: '13px',
   color: colors.slate[800],
   padding: '10px 12px',
@@ -34,7 +34,7 @@ const td: React.CSSProperties = {
   verticalAlign: 'middle',
 };
 
-function buttonStyle(variant: 'primary' | 'secondary' | 'danger' = 'secondary'): React.CSSProperties {
+export function buttonStyle(variant: 'primary' | 'secondary' | 'danger' = 'secondary'): React.CSSProperties {
   const palette = {
     primary: { bg: colors.primary[600], fg: '#ffffff', border: colors.primary[600] },
     secondary: { bg: '#ffffff', fg: colors.slate[700], border: colors.slate[300] },
@@ -64,6 +64,46 @@ const STATUS_TONE: Record<string, keyof typeof colors.status> = {
   REJECTED: 'rejected',
   CANCELLED: 'inactive',
   ACTIVE: 'active',
+  // Service / work management
+  SUBMITTED: 'pending',
+  PENDING_APPROVAL: 'pending',
+  WORK_ORDERED: 'active',
+  FULFILLED: 'neutral',
+  SCHEDULED: 'info',
+  IN_PROGRESS: 'active',
+  ON_HOLD: 'warning',
+  COMPLETION_SUBMITTED: 'pending',
+  CLOSED: 'neutral',
+  DRAFT: 'draft',
+  PAUSED: 'warning',
+  ENDED: 'inactive',
+  GENERATED: 'info',
+  MISSED: 'overdue',
+  OPEN: 'warning',
+  RESOLVED: 'approved',
+  SUSPENDED: 'warning',
+  BLOCKED: 'blocked',
+  INACTIVE: 'inactive',
+  ASSIGNED: 'info',
+  // Activity capture
+  QUEUED: 'pending',
+  CAPTURED: 'approved',
+  FAILED: 'rejected',
+  SUPERSEDED: 'inactive',
+  NEEDS_DATA: 'warning',
+  PENDING_CALCULATION: 'info',
+  COMPLETE: 'approved',
+  PARTIAL: 'warning',
+  INSUFFICIENT: 'overdue',
+  VERIFIED: 'approved',
+  NOT_VERIFIED: 'rejected',
+  UNAVAILABLE: 'draft',
+  // Priority / severity
+  LOW: 'neutral',
+  STANDARD: 'info',
+  MEDIUM: 'info',
+  HIGH: 'warning',
+  CRITICAL: 'danger',
 };
 
 export const StatusPill: React.FC<{ status: string | null | undefined }> = ({ status }) => {
@@ -87,7 +127,7 @@ export const StatusPill: React.FC<{ status: string | null | undefined }> = ({ st
   );
 };
 
-const ErrorNote: React.FC<{ error: string | null }> = ({ error }) =>
+export const ErrorNote: React.FC<{ error: string | null }> = ({ error }) =>
   error ? (
     <div
       role="alert"
@@ -104,7 +144,7 @@ const ErrorNote: React.FC<{ error: string | null }> = ({ error }) =>
     </div>
   ) : null;
 
-const LiveBadge: React.FC = () => (
+export const LiveBadge: React.FC = () => (
   <span
     style={{
       fontSize: '10px',
@@ -121,7 +161,7 @@ const LiveBadge: React.FC = () => (
   </span>
 );
 
-function describeError(err: unknown): string {
+export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
     const detail = err.details?.map(d => `${d.path}: ${d.message}`).join('; ');
     return detail ? `${err.message} (${detail})` : err.message;
@@ -129,7 +169,7 @@ function describeError(err: unknown): string {
   return 'Request failed. Please try again.';
 }
 
-function useApi<T>(path: string | null) {
+export function useApi<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -151,10 +191,10 @@ function useApi<T>(path: string | null) {
   return { data, error, loading, reload: load };
 }
 
-const fmt = (value: string | null | undefined) =>
+export const fmt = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-const PageHeader: React.FC<{ title: string; subtitle: string; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
+export const PageHeader: React.FC<{ title: string; subtitle: string; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '16px' }}>
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -446,7 +486,7 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
   );
 };
 
-const inputStyle: React.CSSProperties = {
+export const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '8px 10px',
   fontSize: '13px',
@@ -455,14 +495,14 @@ const inputStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
 };
 
-const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+export const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontWeight: 600, color: colors.slate[700] }}>
     {label}
     {children}
   </label>
 );
 
-function toLocalInput(date: Date): string {
+export function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
