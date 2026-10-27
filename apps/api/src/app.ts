@@ -161,6 +161,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       if (user.mustChangePassword && !request.url.startsWith('/api/v1/auth/')) {
         throw new HttpError(403, 'PASSWORD_CHANGE_REQUIRED', 'Set a new password to continue.');
       }
+      // The organization requires two-step verification for administrators: set it up first.
+      if (user.mfaEnrollmentRequired && !request.url.startsWith('/api/v1/auth/')) {
+        throw new HttpError(403, 'MFA_ENROLLMENT_REQUIRED', 'Your organization requires two-step verification. Set it up to continue.');
+      }
       return fn(tx, user);
     });
   };

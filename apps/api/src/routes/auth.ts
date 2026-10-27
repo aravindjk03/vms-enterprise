@@ -4,10 +4,20 @@ import { ROLE_PERMISSIONS } from '@vms/permissions';
 import type { RouteContext } from '../app.js';
 import { writeAudit } from '../audit.js';
 import { withTenant, type Tx } from '../db.js';
-import { loadUserContext, type AuthenticatedUser } from '../context.js';
+import { isAdministrator, loadUserContext, type AuthenticatedUser } from '../context.js';
 import { HttpError } from '../errors.js';
 import { hashPasswordAsync, PASSWORD_HISTORY_LIMIT, passwordPolicyErrors, verifyPasswordAsync } from '../security/passwords.js';
-import { hashRefreshToken, issueAccessToken, newRefreshToken } from '../security/tokens.js';
+import { hashRefreshToken, issueAccessToken, issueMfaChallenge, newRefreshToken, verifyMfaChallenge } from '../security/tokens.js';
+import {
+  decryptSecret,
+  deriveMfaKey,
+  encryptSecret,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  matchRecoveryCode,
+  otpauthUrl,
+  verifyTotp,
+} from '../security/totp.js';
 
 const REFRESH_COOKIE = 'vms_rt';
 const SESSION_HINT_COOKIE = 'vms_session';
@@ -24,6 +34,17 @@ const LoginSchema = z.object({
   username: z.string().trim().min(2).max(128),
   password: z.string().min(1).max(256),
 });
+
+const SecondFactorSchema = z.object({
+  challenge: z.string().min(10).max(2048),
+  code: z.string().trim().min(6).max(32),
+});
+const PasswordOnly = z.object({ currentPassword: z.string().min(1).max(256) });
+const CodeOnly = z.object({ code: z.string().trim().min(6).max(32) });
+const PasswordAndCode = PasswordOnly.extend({ code: z.string().trim().min(6).max(32) });
+
+/** Shown as the account name in authenticator apps. */
+const MFA_ISSUER = 'VMS Enterprise';
 
 function readCookie(request: FastifyRequest, name: string): string | undefined {
   const raw = request.headers.cookie;
@@ -74,6 +95,8 @@ export function describeUser(user: AuthenticatedUser) {
     email: user.email,
     organizationName: user.organizationName,
     mustChangePassword: user.mustChangePassword,
+    mfaEnabled: user.mfaEnabled,
+    mfaEnrollmentRequired: user.mfaEnrollmentRequired,
   };
 }
 
@@ -145,9 +168,22 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext
       throw new HttpError(401, 'INVALID_CREDENTIALS', INVALID_LOGIN);
     }
 
-    await db.query('SELECT auth_record_login_attempt($1, true, $2, $3)', [account.user_id, config.maxFailedLogins, config.lockoutMinutes]);
-    return withTenant(db, account.tenant_id, async tx => {
-      const user = await loadUserContext(tx, account.user_id, '');
+    // With two-step verification the password alone opens nothing: the client exchanges a short-lived
+    // challenge plus a code for the session. Failed codes count towards the same lockout as passwords.
+    const mfa = await withTenant(db, account.tenant_id, tx =>
+      tx.query<{ enabled: boolean }>('SELECT enabled_at IS NOT NULL AS enabled FROM user_mfa WHERE user_id = $1', [account.user_id])
+    );
+    if (mfa.rows[0]?.enabled) {
+      const challenge = issueMfaChallenge({ userId: account.user_id, tenantId: account.tenant_id }, config.jwtSecret);
+      return { mfaRequired: true, challenge: challenge.token, challengeExpiresAt: challenge.expiresAt.toISOString() };
+    }
+    return completeLogin(account.user_id, account.tenant_id, request, reply, null);
+  });
+
+  async function completeLogin(userId: string, tenantId: string, request: FastifyRequest, reply: FastifyReply, how: string | null) {
+    await db.query('SELECT auth_record_login_attempt($1, true, $2, $3)', [userId, config.maxFailedLogins, config.lockoutMinutes]);
+    return withTenant(db, tenantId, async tx => {
+      const user = await loadUserContext(tx, userId, '');
       if (!user) throw new HttpError(401, 'INVALID_CREDENTIALS', INVALID_LOGIN);
       const result = await startSession(tx, user, request, reply);
       await writeAudit(tx, {
@@ -158,9 +194,86 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext
         entityType: 'USER',
         entityId: user.userId,
         requestId: request.id,
+        reason: how ?? undefined,
       });
       return result;
     });
+  }
+
+  const mfaKey = deriveMfaKey(config.mfaEncryptionKey ?? config.jwtSecret);
+
+  /** Decrypts a stored secret; a changed key is an operator problem, never counted against the user. */
+  function readSecret(stored: string, request: FastifyRequest): string {
+    try {
+      return decryptSecret(stored, mfaKey);
+    } catch {
+      request.log.error('two-step secret could not be decrypted (MFA_ENCRYPTION_KEY or JWT_SECRET changed?)');
+      throw new HttpError(409, 'MFA_SECRET_UNREADABLE', 'Two-step verification has to be set up again. Ask an administrator to reset it.');
+    }
+  }
+
+  // Second sign-in step: a code from the authenticator app, or one of the single-use recovery codes.
+  app.post('/api/v1/auth/login/verify', async (request, reply) => {
+    const body = SecondFactorSchema.parse(request.body);
+    const claims = verifyMfaChallenge(body.challenge, config.jwtSecret);
+    if (!claims) throw new HttpError(401, 'MFA_CHALLENGE_EXPIRED', 'This sign-in has expired. Please sign in again.');
+    if (!ctx.rateLimiter.checkRateLimit(`mfa:${claims.sub}`, 'LOGIN').allowed) {
+      throw new HttpError(429, 'RATE_LIMITED', 'Too many attempts. Please wait a minute and try again.');
+    }
+    const outcome = await withTenant(db, claims.tid, async tx => {
+      const { rows } = await tx.query<{
+        is_active: boolean;
+        status: string;
+        locked_until: Date | null;
+        secret_encrypted: string;
+        enabled_at: Date | null;
+        last_used_step: string;
+        recovery_code_hashes: string[];
+      }>(
+        `SELECT u.is_active, u.status, c.locked_until, m.secret_encrypted, m.enabled_at, m.last_used_step, m.recovery_code_hashes
+           FROM users u JOIN user_credentials c ON c.user_id = u.user_id JOIN user_mfa m ON m.user_id = u.user_id
+          WHERE u.user_id = $1 FOR UPDATE OF m`,
+        [claims.sub]
+      );
+      const r = rows[0];
+      const locked = !!r?.locked_until && r.locked_until.getTime() > Date.now();
+      let how: string | null = null;
+      if (r && r.enabled_at && r.is_active && r.status === 'ACTIVE' && !locked) {
+        const step = verifyTotp(readSecret(r.secret_encrypted, request), body.code.replace(/\s/g, ''), Number(r.last_used_step));
+        if (step !== null) {
+          await tx.query('UPDATE user_mfa SET last_used_step = $2, updated_at = now() WHERE user_id = $1', [claims.sub, step]);
+          how = 'two-step verification: authenticator app';
+        } else {
+          const index = matchRecoveryCode(body.code, r.recovery_code_hashes);
+          if (index >= 0) {
+            await tx.query('UPDATE user_mfa SET recovery_code_hashes = $2, updated_at = now() WHERE user_id = $1', [
+              claims.sub,
+              r.recovery_code_hashes.filter((_, i) => i !== index),
+            ]);
+            await writeAudit(tx, {
+              tenantId: claims.tid, actorId: claims.sub, actorRole: 'UNAUTHENTICATED', action: 'MFA_RECOVERY_CODE_USED',
+              entityType: 'USER', entityId: claims.sub, requestId: request.id, reason: `${r.recovery_code_hashes.length - 1} recovery codes left`,
+            });
+            how = 'two-step verification: recovery code';
+          }
+        }
+      }
+      if (!how) {
+        await writeAudit(tx, {
+          tenantId: claims.tid, actorId: claims.sub, actorRole: 'UNAUTHENTICATED', action: 'LOGIN_FAILED',
+          entityType: 'USER', entityId: claims.sub, requestId: request.id,
+          reason: !r || !r.enabled_at ? 'two-step verification no longer set up' : locked ? 'account locked' : !r.is_active || r.status !== 'ACTIVE' ? 'account disabled' : 'wrong verification code',
+        });
+      }
+      return { how, countAttempt: !!r && !locked };
+    });
+    if (!outcome.how) {
+      if (outcome.countAttempt) {
+        await db.query('SELECT auth_record_login_attempt($1, false, $2, $3)', [claims.sub, config.maxFailedLogins, config.lockoutMinutes]);
+      }
+      throw new HttpError(401, 'INVALID_CODE', 'That code is not correct or has already been used. Try the newest code from your app.');
+    }
+    return completeLogin(claims.sub, claims.tid, request, reply, outcome.how);
   });
 
   app.post('/api/v1/auth/refresh', async (request, reply) => {
@@ -301,6 +414,177 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext
         entityType: 'USER', entityId: user.userId, requestId: request.id,
       });
       return describeUser({ ...user, mustChangePassword: false });
+    })
+  );
+
+  // ---------------------------------------------------------------------------
+  // Two-step verification, managed by the user. Changes need the current password (and, to turn it
+  // off, a current code), so a borrowed unlocked session cannot quietly remove the second factor.
+  // ---------------------------------------------------------------------------
+
+  async function requireCurrentPassword(tx: Tx, user: AuthenticatedUser, password: string, request: FastifyRequest) {
+    if (!ctx.rateLimiter.checkRateLimit(`mfa-manage:${user.userId}`, 'LOGIN').allowed) {
+      throw new HttpError(429, 'RATE_LIMITED', 'Too many attempts. Please wait a minute and try again.');
+    }
+    const { rows } = await tx.query<{ password_hash: string }>('SELECT password_hash FROM user_credentials WHERE user_id = $1', [user.userId]);
+    if (!rows[0] || !(await verifyPasswordAsync(password, rows[0].password_hash))) {
+      request.log.warn({ userId: user.userId }, 'two-step change with wrong current password');
+      throw new HttpError(400, 'INVALID_CURRENT_PASSWORD', 'The current password is not correct.');
+    }
+  }
+
+  async function policyRequiresMfa(tx: Tx, user: AuthenticatedUser): Promise<boolean> {
+    const { rows } = await tx.query<{ required: boolean }>('SELECT require_mfa_for_admins AS required FROM tenant_security_settings WHERE tenant_id = $1', [
+      user.tenantId,
+    ]);
+    return rows[0]?.required === true && isAdministrator([user.role, ...(user.roles ?? [])]);
+  }
+
+  type MfaRow = { secret_encrypted: string; enabled_at: Date | null; last_used_step: string; recovery_code_hashes: string[] };
+  const loadMfa = async (tx: Tx, userId: string) =>
+    (await tx.query<MfaRow>('SELECT secret_encrypted, enabled_at, last_used_step, recovery_code_hashes FROM user_mfa WHERE user_id = $1 FOR UPDATE', [userId]))
+      .rows[0];
+
+  const audit = (tx: Tx, user: AuthenticatedUser, request: FastifyRequest, action: string) =>
+    writeAudit(tx, { tenantId: user.tenantId, actorId: user.userId, actorRole: user.role, action, entityType: 'USER', entityId: user.userId, requestId: request.id });
+
+  app.get('/api/v1/auth/mfa', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const { rows } = await tx.query<{ enabled_at: Date | null; codes: number }>(
+        'SELECT enabled_at, cardinality(recovery_code_hashes) AS codes FROM user_mfa WHERE user_id = $1',
+        [user.userId]
+      );
+      return {
+        enabled: !!rows[0]?.enabled_at,
+        enabledAt: rows[0]?.enabled_at ?? null,
+        recoveryCodesLeft: rows[0]?.enabled_at ? rows[0].codes : 0,
+        requiredByPolicy: await policyRequiresMfa(tx, user),
+      };
+    })
+  );
+
+  app.post('/api/v1/auth/mfa/setup', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const body = PasswordOnly.parse(request.body);
+      await requireCurrentPassword(tx, user, body.currentPassword, request);
+      const existing = await loadMfa(tx, user.userId);
+      if (existing?.enabled_at) throw new HttpError(409, 'MFA_ALREADY_ENABLED', 'Two-step verification is already on.');
+      const secret = generateTotpSecret();
+      await tx.query(
+        `INSERT INTO user_mfa (user_id, tenant_id, secret_encrypted) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE SET secret_encrypted = EXCLUDED.secret_encrypted, enabled_at = NULL,
+                last_used_step = 0, recovery_code_hashes = '{}', updated_at = now()`,
+        [user.userId, user.tenantId, encryptSecret(secret, mfaKey)]
+      );
+      const account = user.organizationName ? `${user.username} (${user.organizationName})` : user.username;
+      return { secret, otpauthUrl: otpauthUrl(MFA_ISSUER, account, secret) };
+    })
+  );
+
+  app.post('/api/v1/auth/mfa/enable', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const body = CodeOnly.parse(request.body);
+      if (!ctx.rateLimiter.checkRateLimit(`mfa-manage:${user.userId}`, 'LOGIN').allowed) {
+        throw new HttpError(429, 'RATE_LIMITED', 'Too many attempts. Please wait a minute and try again.');
+      }
+      const row = await loadMfa(tx, user.userId);
+      if (!row) throw new HttpError(409, 'MFA_SETUP_MISSING', 'Start the setup again.');
+      if (row.enabled_at) throw new HttpError(409, 'MFA_ALREADY_ENABLED', 'Two-step verification is already on.');
+      const step = verifyTotp(readSecret(row.secret_encrypted, request), body.code.replace(/\s/g, ''), 0);
+      if (step === null) throw new HttpError(400, 'INVALID_CODE', 'That code is not correct. Check the time on your phone and try the newest code.');
+      const recovery = generateRecoveryCodes();
+      await tx.query('UPDATE user_mfa SET enabled_at = now(), last_used_step = $2, recovery_code_hashes = $3, updated_at = now() WHERE user_id = $1', [
+        user.userId,
+        step,
+        recovery.hashes,
+      ]);
+      await audit(tx, user, request, 'MFA_ENABLED');
+      return { recoveryCodes: recovery.codes, user: describeUser({ ...user, mfaEnabled: true, mfaEnrollmentRequired: false }) };
+    })
+  );
+
+  app.post('/api/v1/auth/mfa/disable', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const body = PasswordAndCode.parse(request.body);
+      if (await policyRequiresMfa(tx, user)) {
+        throw new HttpError(403, 'MFA_REQUIRED_BY_POLICY', 'Your organization requires two-step verification for administrators.');
+      }
+      await requireCurrentPassword(tx, user, body.currentPassword, request);
+      const row = await loadMfa(tx, user.userId);
+      if (!row?.enabled_at) throw new HttpError(409, 'MFA_NOT_ENABLED', 'Two-step verification is not on.');
+      const ok =
+        verifyTotp(readSecret(row.secret_encrypted, request), body.code.replace(/\s/g, ''), Number(row.last_used_step)) !== null ||
+        matchRecoveryCode(body.code, row.recovery_code_hashes) >= 0;
+      if (!ok) throw new HttpError(400, 'INVALID_CODE', 'That code is not correct or has already been used.');
+      await tx.query('DELETE FROM user_mfa WHERE user_id = $1', [user.userId]);
+      await audit(tx, user, request, 'MFA_DISABLED');
+      return describeUser({ ...user, mfaEnabled: false });
+    })
+  );
+
+  app.post('/api/v1/auth/mfa/recovery-codes', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const body = PasswordOnly.parse(request.body);
+      await requireCurrentPassword(tx, user, body.currentPassword, request);
+      const row = await loadMfa(tx, user.userId);
+      if (!row?.enabled_at) throw new HttpError(409, 'MFA_NOT_ENABLED', 'Two-step verification is not on.');
+      const recovery = generateRecoveryCodes();
+      await tx.query('UPDATE user_mfa SET recovery_code_hashes = $2, updated_at = now() WHERE user_id = $1', [user.userId, recovery.hashes]);
+      await audit(tx, user, request, 'MFA_RECOVERY_CODES_REGENERATED');
+      return { recoveryCodes: recovery.codes };
+    })
+  );
+
+  // ---------------------------------------------------------------------------
+  // The user's own signed-in devices. Each refresh rotates the session row, so the newest active row
+  // per device shows when it was last used.
+  // ---------------------------------------------------------------------------
+
+  app.get('/api/v1/auth/sessions', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const { rows } = await tx.query<{ session_id: string; created_at: Date; expires_at: Date; created_ip: string | null; user_agent: string | null }>(
+        `SELECT session_id, created_at, expires_at, created_ip, user_agent FROM user_sessions
+          WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now() ORDER BY created_at DESC LIMIT 50`,
+        [user.userId]
+      );
+      return {
+        items: rows.map(r => ({
+          id: r.session_id,
+          current: r.session_id === user.sessionId,
+          lastActiveAt: r.created_at,
+          expiresAt: r.expires_at,
+          ipAddress: r.created_ip,
+          userAgent: r.user_agent,
+        })),
+      };
+    })
+  );
+
+  app.post('/api/v1/auth/sessions/:id/revoke', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const { id } = request.params as { id: string };
+      if (id === user.sessionId) throw new HttpError(400, 'CURRENT_SESSION', 'Use Sign out to end this session.');
+      const { rowCount } = await tx.query(
+        `UPDATE user_sessions SET revoked_at = now() WHERE session_id::text = $1 AND user_id = $2 AND revoked_at IS NULL`,
+        [id, user.userId]
+      );
+      if (!rowCount) throw new HttpError(404, 'NOT_FOUND', 'Session not found.');
+      await writeAudit(tx, {
+        tenantId: user.tenantId, actorId: user.userId, actorRole: user.role, action: 'SESSION_REVOKED',
+        entityType: 'USER_SESSION', entityId: id, requestId: request.id,
+      });
+      return { id };
+    })
+  );
+
+  app.post('/api/v1/auth/sessions/revoke-others', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      const { rowCount } = await tx.query(
+        'UPDATE user_sessions SET revoked_at = now() WHERE user_id = $1 AND session_id <> $2 AND revoked_at IS NULL',
+        [user.userId, user.sessionId]
+      );
+      await audit(tx, user, request, 'SESSIONS_REVOKED_OTHERS');
+      return { revoked: rowCount ?? 0 };
     })
   );
 }

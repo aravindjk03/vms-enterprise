@@ -4,7 +4,7 @@ import { canAssignRole, canManageUserWithRoles, ROLE_PERMISSIONS, TENANT_WIDE_RO
 import type { EnterpriseRole } from '@vms/types';
 import type { RouteContext } from '../app.js';
 import { writeAudit } from '../audit.js';
-import { authorize, type AuthenticatedUser } from '../context.js';
+import { authorize, isAdministrator, type AuthenticatedUser } from '../context.js';
 import { isUuid, type Tx } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import { generateTemporaryPassword, hashPasswordAsync } from '../security/passwords.js';
@@ -208,19 +208,20 @@ export async function registerAdminRoutes(app: FastifyInstance, ctx: RouteContex
       const q = ListQuery.parse(request.query);
       const scope = isTenantWide(user) ? null : user.assignedSiteIds ?? [];
       const { rows } = await tx.query<
-        TargetUser & { last_login_at: Date | null; locked_until: Date | null; must_change_password: boolean | null; total: number }
+        TargetUser & { last_login_at: Date | null; locked_until: Date | null; must_change_password: boolean | null; mfa_enabled: boolean; total: number }
       >(
         `WITH base AS (
            SELECT u.user_id, u.username::text, u.full_name, u.email::text, u.status, u.is_active,
                   coalesce(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles,
                   coalesce(array_agg(DISTINCT s.site_id) FILTER (WHERE s.site_id IS NOT NULL), '{}') AS site_ids,
-                  c.last_login_at, c.locked_until, c.must_change_password
+                  c.last_login_at, c.locked_until, c.must_change_password, (m.enabled_at IS NOT NULL) AS mfa_enabled
              FROM users u
              LEFT JOIN user_roles ur ON ur.user_id = u.user_id
              LEFT JOIN roles r ON r.role_id = ur.role_id
              LEFT JOIN user_site_access s ON s.user_id = u.user_id
              LEFT JOIN user_credentials c ON c.user_id = u.user_id
-            GROUP BY u.user_id, c.last_login_at, c.locked_until, c.must_change_password
+             LEFT JOIN user_mfa m ON m.user_id = u.user_id
+            GROUP BY u.user_id, c.last_login_at, c.locked_until, c.must_change_password, m.enabled_at
          )
          SELECT *, count(*) OVER()::int AS total FROM base
           WHERE ($1::text IS NULL OR username ILIKE '%' || $1 || '%' OR full_name ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%')
@@ -244,6 +245,7 @@ export async function registerAdminRoutes(app: FastifyInstance, ctx: RouteContex
           lastLoginAt: r.last_login_at,
           locked: !!r.locked_until && r.locked_until.getTime() > Date.now(),
           mustChangePassword: r.must_change_password === true,
+          mfaEnabled: r.mfa_enabled,
           hasPassword: r.must_change_password !== null,
           canManage: canManage(user, r),
           isSelf: r.user_id === user.userId,
@@ -269,11 +271,20 @@ export async function registerAdminRoutes(app: FastifyInstance, ctx: RouteContex
         [target.user_id]
       );
       const defaults = await tx.query<{ site_id: string }>('SELECT site_id FROM user_site_access WHERE user_id = $1 AND is_default', [target.user_id]);
+      // Changes to the account; sign-ins are summarized under "Sign-in and security" instead.
       const history = await tx.query(
         `SELECT "timestamp", action, actor_role AS "actorRole", reason FROM audit_logs
-          WHERE entity_type = 'USER' AND entity_id = $1 ORDER BY "timestamp" DESC LIMIT 20`,
+          WHERE entity_type = 'USER' AND entity_id = $1 AND action NOT IN ('LOGIN_SUCCESS', 'LOGIN_FAILED')
+          ORDER BY "timestamp" DESC LIMIT 20`,
         [target.user_id]
       );
+      const mfa = await tx.query<{ enabled_at: Date | null; codes: number }>(
+        'SELECT enabled_at, cardinality(recovery_code_hashes) AS codes FROM user_mfa WHERE user_id = $1',
+        [target.user_id]
+      );
+      const policy = await tx.query<{ required: boolean }>('SELECT require_mfa_for_admins AS required FROM tenant_security_settings WHERE tenant_id = $1', [
+        user.tenantId,
+      ]);
       const c = cred.rows[0];
       return {
         id: target.user_id,
@@ -291,6 +302,10 @@ export async function registerAdminRoutes(app: FastifyInstance, ctx: RouteContex
         mustChangePassword: c?.must_change_password === true,
         hasPassword: !!c,
         activeSessions: sessions.rows[0].n,
+        mfaEnabled: !!mfa.rows[0]?.enabled_at,
+        mfaEnabledAt: mfa.rows[0]?.enabled_at ?? null,
+        recoveryCodesLeft: mfa.rows[0]?.enabled_at ? mfa.rows[0].codes : 0,
+        mfaRequiredByPolicy: policy.rows[0]?.required === true && isAdministrator(effectiveRoles(target.roles)),
         canManage: canManage(user, target),
         isSelf: target.user_id === user.userId,
         assignableRoles: ROLE_CODES.filter(r => canAssignRole(actorRoles(user), r)),
@@ -466,6 +481,79 @@ export async function registerAdminRoutes(app: FastifyInstance, ctx: RouteContex
       await revokeSessions(tx, target.user_id);
       await audit(tx, user, request.id, 'USER_SESSIONS_REVOKED', target.user_id, { reason });
       return { id: target.user_id };
+    })
+  );
+
+  // Removes a user's authenticator (lost phone): they sign in with their password alone, or set it up
+  // again at the next sign-in when the organization requires it. All sessions end.
+  app.post('/api/v1/admin/users/:id/reset-mfa', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      authorize(user, 'USER_MANAGE');
+      const { reason } = ReasonOnly.parse(request.body ?? {});
+      const target = await loadTarget(tx, (request.params as { id: string }).id, true);
+      requireManage(user, target);
+      const removed = await tx.query('DELETE FROM user_mfa WHERE user_id = $1', [target.user_id]);
+      if (!removed.rowCount) throw new HttpError(409, 'MFA_NOT_ENABLED', 'This user has not set up two-step verification.');
+      await revokeSessions(tx, target.user_id);
+      await audit(tx, user, request.id, 'USER_MFA_RESET', target.user_id, { reason });
+      return { id: target.user_id };
+    })
+  );
+
+  // Organization sign-in policy. Everyone with USER_MANAGE can read it; tenant-wide administrators change it.
+  app.get('/api/v1/admin/security-settings', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      authorize(user, 'USER_MANAGE');
+      const settings = await tx.query<{ require_mfa_for_admins: boolean; updated_at: Date }>(
+        'SELECT require_mfa_for_admins, updated_at FROM tenant_security_settings WHERE tenant_id = $1',
+        [user.tenantId]
+      );
+      const people = await tx.query<{ roles: EnterpriseRole[]; mfa: boolean }>(
+        `SELECT coalesce(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles, bool_or(m.enabled_at IS NOT NULL) AS mfa
+           FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.user_id LEFT JOIN roles r ON r.role_id = ur.role_id
+           LEFT JOIN user_mfa m ON m.user_id = u.user_id
+          WHERE u.is_active AND u.status = 'ACTIVE'
+          GROUP BY u.user_id`
+      );
+      const admins = people.rows.filter(p => isAdministrator(effectiveRoles(p.roles)));
+      // Organization-wide figures only for organization-wide administrators (site admins see their sites only elsewhere).
+      const wide = isTenantWide(user);
+      return {
+        requireMfaForAdmins: settings.rows[0]?.require_mfa_for_admins === true,
+        updatedAt: settings.rows[0]?.updated_at ?? null,
+        activeUsers: wide ? people.rows.length : null,
+        usersWithMfa: wide ? people.rows.filter(p => p.mfa).length : null,
+        administrators: wide ? admins.length : null,
+        administratorsWithMfa: wide ? admins.filter(p => p.mfa).length : null,
+        canEdit: isTenantWide(user),
+        youHaveMfa: user.mfaEnabled,
+      };
+    })
+  );
+
+  app.put('/api/v1/admin/security-settings', async request =>
+    ctx.asUser(request, async (tx, user) => {
+      authorize(user, 'USER_MANAGE');
+      const body = z.object({ requireMfaForAdmins: z.boolean(), reason: Reason }).parse(request.body);
+      if (!isTenantWide(user)) throw new HttpError(403, 'FORBIDDEN', 'Only organization-wide administrators change the sign-in policy.');
+      if (body.requireMfaForAdmins && !user.mfaEnabled) {
+        throw new HttpError(409, 'MFA_SELF_FIRST', 'Turn on two-step verification for your own account first.');
+      }
+      const before = await tx.query<{ require_mfa_for_admins: boolean }>('SELECT require_mfa_for_admins FROM tenant_security_settings WHERE tenant_id = $1', [
+        user.tenantId,
+      ]);
+      await tx.query(
+        `INSERT INTO tenant_security_settings (tenant_id, require_mfa_for_admins, updated_at, updated_by) VALUES ($1, $2, now(), $3)
+         ON CONFLICT (tenant_id) DO UPDATE SET require_mfa_for_admins = EXCLUDED.require_mfa_for_admins, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+        [user.tenantId, body.requireMfaForAdmins, user.userId]
+      );
+      await writeAudit(tx, {
+        tenantId: user.tenantId, actorId: user.userId, actorRole: user.role, action: 'SECURITY_SETTINGS_CHANGED',
+        entityType: 'TENANT', entityId: user.tenantId, requestId: request.id, reason: body.reason,
+        before: { requireMfaForAdmins: before.rows[0]?.require_mfa_for_admins === true },
+        after: { requireMfaForAdmins: body.requireMfaForAdmins },
+      });
+      return { requireMfaForAdmins: body.requireMfaForAdmins };
     })
   );
 }

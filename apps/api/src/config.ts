@@ -27,6 +27,11 @@ export interface ApiConfig {
   trustProxy: boolean;
   /** Development escape hatch; production refuses DB roles that bypass row-level security. */
   allowPrivilegedDbRole: boolean;
+  /**
+   * Key material for encrypting two-step verification secrets at rest. Falls back to JWT_SECRET, in which
+   * case rotating JWT_SECRET means users have to set up two-step verification again.
+   */
+  mfaEncryptionKey?: string;
 }
 
 function int(name: string, fallback: number): number {
@@ -37,6 +42,13 @@ function int(name: string, fallback: number): number {
     throw new Error(`${name} must be a positive integer.`);
   }
   return parsed;
+}
+
+function mfaKeyFromEnv(): string | undefined {
+  const key = process.env['MFA_ENCRYPTION_KEY'];
+  if (!key) return undefined;
+  if (Buffer.byteLength(key) < 32) throw new Error('MFA_ENCRYPTION_KEY must be at least 32 bytes.');
+  return key;
 }
 
 export function loadApiConfig(): ApiConfig {
@@ -75,5 +87,6 @@ export function loadApiConfig(): ApiConfig {
     webDistDir: process.env['WEB_DIST_DIR'] || undefined,
     trustProxy: process.env['TRUST_PROXY'] === 'true',
     allowPrivilegedDbRole: env !== 'production' && process.env['ALLOW_PRIVILEGED_DB_ROLE'] === 'true',
+    mfaEncryptionKey: mfaKeyFromEnv(),
   };
 }

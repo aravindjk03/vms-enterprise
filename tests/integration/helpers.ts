@@ -25,6 +25,8 @@ export interface TestEnv {
   appDb: Db;
   dbName: string;
   login(tenantCode: string, username: string, password: string): Promise<Session>;
+  /** A session from any response that carries an access token (sign-in, second step). */
+  session(res: LightMyRequestResponse): Session;
   close(): Promise<void>;
 }
 
@@ -73,25 +75,29 @@ export async function createTestEnv(): Promise<TestEnv> {
   const appDb = createPool(config);
   const app = await buildApp({ config, db: appDb });
 
+  const sessionFrom = (res: LightMyRequestResponse): Session => {
+    const body = res.json();
+    const auth = { authorization: `Bearer ${body.accessToken}` };
+    return {
+      status: res.statusCode,
+      user: body.user,
+      auth,
+      get: url => app.inject({ method: 'GET', url, headers: auth }),
+      post: (url, payload = {}, headers = {}) => app.inject({ method: 'POST', url, payload: payload as object, headers: { ...auth, ...headers } }),
+      patch: (url, payload = {}) => app.inject({ method: 'PATCH', url, payload: payload as object, headers: auth }),
+      put: (url, payload = {}) => app.inject({ method: 'PUT', url, payload: payload as object, headers: auth }),
+    };
+  };
+
   return {
     app,
     owner,
     appDb,
     dbName,
     async login(tenantCode, username, password) {
-      const res = await app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { tenantCode, username, password } });
-      const body = res.json();
-      const auth = { authorization: `Bearer ${body.accessToken}` };
-      return {
-        status: res.statusCode,
-        user: body.user,
-        auth,
-        get: url => app.inject({ method: 'GET', url, headers: auth }),
-        post: (url, payload = {}, headers = {}) => app.inject({ method: 'POST', url, payload: payload as object, headers: { ...auth, ...headers } }),
-        patch: (url, payload = {}) => app.inject({ method: 'PATCH', url, payload: payload as object, headers: auth }),
-        put: (url, payload = {}) => app.inject({ method: 'PUT', url, payload: payload as object, headers: auth }),
-      };
+      return sessionFrom(await app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { tenantCode, username, password } }));
     },
+    session: res => sessionFrom(res),
     async close() {
       await app.close();
       await appDb.end();

@@ -33,6 +33,18 @@ export interface AuthenticatedUser extends UserContext {
   organizationName: string;
   /** Set after an administrator issues a temporary password; only the auth endpoints work until changed. */
   mustChangePassword: boolean;
+  /** Two-step verification is set up and confirmed for this user. */
+  mfaEnabled: boolean;
+  /** The organization requires two-step verification for this user (an administrator) and it is not set up yet. */
+  mfaEnrollmentRequired: boolean;
+}
+
+/** Users who administer people or the system; the organization can require two-step verification for them. */
+export function isAdministrator(roles: string[]): boolean {
+  return roles.some(r => {
+    const permissions = (ROLE_PERMISSIONS as Record<string, string[]>)[r] ?? [];
+    return permissions.includes('USER_MANAGE') || permissions.includes('SYSTEM_ADMIN_MANAGE');
+  });
 }
 
 /**
@@ -52,12 +64,17 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     status: string;
     is_active: boolean;
     must_change_password: boolean | null;
+    mfa_enabled: boolean;
+    require_mfa_for_admins: boolean | null;
   }>(
     `SELECT u.user_id, u.tenant_id, u.organization_id, u.username::text, u.full_name, u.email::text, u.status, u.is_active,
-            c.must_change_password, o.name AS organization_name
+            c.must_change_password, o.name AS organization_name,
+            (m.enabled_at IS NOT NULL) AS mfa_enabled, s.require_mfa_for_admins
        FROM users u
        LEFT JOIN user_credentials c ON c.user_id = u.user_id
        LEFT JOIN organizations o ON o.organization_id = u.organization_id
+       LEFT JOIN user_mfa m ON m.user_id = u.user_id
+       LEFT JOIN tenant_security_settings s ON s.tenant_id = u.tenant_id
       WHERE u.user_id = $1`,
     [userId]
   );
@@ -88,13 +105,15 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     email: user.email,
     organizationName: user.organization_name ?? '',
     mustChangePassword: user.must_change_password === true,
+    mfaEnabled: user.mfa_enabled,
+    mfaEnrollmentRequired: user.require_mfa_for_admins === true && !user.mfa_enabled && isAdministrator(roles.length ? roles : ['HOST']),
     // Users without any role get the least-privileged baseline.
     role: roles[0] ?? 'HOST',
     roles: roles.slice(1),
     siteId: assignedSiteIds[0],
     assignedSiteIds,
     sessionId,
-    mfaVerified: false,
+    mfaVerified: user.mfa_enabled,
   };
 }
 
