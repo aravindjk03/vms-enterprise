@@ -1967,7 +1967,7 @@ export const CustomerManagementView: React.FC<CustomerManagementViewProps> = ({
 
       {/* 7. SUBVIEW 5: NEW CUSTOMER VISIT FORM (Progressive Disclosure Sections A - I) */}
       {subView === 'NEW' && (
-        <Card className="bg-white border border-slate-200 p-6 max-w-4xl mx-auto shadow-sm">
+        <Card className="bg-white border border-slate-200 p-4 sm:p-6 w-full max-w-4xl mx-auto shadow-sm">
           <div className="border-b border-slate-200 pb-4 mb-6">
             <h2 className="text-base font-bold text-slate-900">
               New Customer Visit Pre-Registration & Operational Mobility Capture

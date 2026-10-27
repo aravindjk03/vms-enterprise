@@ -1016,7 +1016,7 @@ export const VisitorManagementView: React.FC<VisitorManagementViewProps> = ({
 
       {/* SUBVIEW 3: NEW VISITOR REGISTRATION FORM WITH PROGRESSIVE DISCLOSURE & EMBEDDED ESG */}
       {subView === 'NEW' && (
-        <Card className="bg-white border border-slate-200 p-6 max-w-4xl mx-auto">
+        <Card className="bg-white border border-slate-200 p-4 sm:p-6 w-full max-w-4xl mx-auto">
           <div className="border-b border-slate-200 pb-4 mb-6">
             <h2 className="text-base font-bold text-slate-900">New Visitor Pre-Registration & ESG Activity Capture</h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -1344,7 +1344,7 @@ export const VisitorManagementView: React.FC<VisitorManagementViewProps> = ({
 
       {/* SUBVIEW 4: RETURNING VISITOR FAST LOOKUP & DISAMBIGUATION */}
       {subView === 'REPEATED' && (
-        <Card className="bg-white border border-slate-200 p-6 max-w-2xl mx-auto space-y-4">
+        <Card className="bg-white border border-slate-200 p-4 sm:p-6 w-full max-w-2xl mx-auto space-y-4">
           <div className="border-b border-slate-200 pb-3">
             <h2 className="text-sm font-bold text-slate-900">Returning Visitor Fast Lookup</h2>
             <p className="text-xs text-slate-500 mt-0.5">

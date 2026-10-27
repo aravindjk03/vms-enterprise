@@ -56,6 +56,8 @@ interface DemoUser {
   lockedUntil: string | null;
   mustChangePassword: boolean;
   activeSessions: number;
+  mfaEnabled: boolean;
+  recoveryCodesLeft: number;
 }
 
 interface AuditEntry {
@@ -74,9 +76,15 @@ interface DemoState {
   users: DemoUser[];
   audit: AuditEntry[];
   seq: number;
+  requireMfaForAdmins: boolean;
+  policyUpdatedAt: string | null;
 }
 
-const STORAGE_KEY = 'vms.demo.state.v1';
+const STORAGE_KEY = 'vms.demo.state.v2';
+
+/** Same rule as the server: people who manage users or the system count as administrators. */
+const isAdministrator = (roles: EnterpriseRole[]) =>
+  roles.some(r => (ROLE_PERMISSIONS[r] as string[] | undefined)?.some(p => p === 'USER_MANAGE' || p === 'SYSTEM_ADMIN_MANAGE'));
 const ALL_SITES = DEMO_BACKEND_SITES.map(s => s.siteId);
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
@@ -103,6 +111,8 @@ function person(
     lockedUntil: null,
     mustChangePassword: false,
     activeSessions: 0,
+    mfaEnabled: false,
+    recoveryCodesLeft: 0,
     ...extra,
   };
 }
@@ -110,9 +120,9 @@ function person(
 function seed(): DemoState {
   const [chn, pun, jsr] = ALL_SITES;
   const users: DemoUser[] = [
-    person('u-admin', 'admin', 'Dana Whitfield', ['SUPER_ADMIN'], []),
+    person('u-admin', 'admin', 'Dana Whitfield', ['SUPER_ADMIN'], [], { mfaEnabled: true, recoveryCodesLeft: 10 }),
     person('u-site-admin', 'site.admin', 'Marcus Okafor', ['SITE_ADMIN'], [chn]),
-    person('u-security-manager', 'security.manager', 'Leena Joshi', ['SECURITY_MANAGER'], [chn, pun]),
+    person('u-security-manager', 'security.manager', 'Leena Joshi', ['SECURITY_MANAGER'], [chn, pun], { mfaEnabled: true, recoveryCodesLeft: 8 }),
     person('u-guard', 'guard', 'Ravi Kumar', ['SECURITY_GUARD'], [chn], { lastLoginAt: ago(35) }),
     person('u-reception', 'reception', 'Sofia Martins', ['RECEPTIONIST'], [chn], { lastLoginAt: ago(80) }),
     person('u-host', 'host', 'Priya Raman', ['HOST'], [chn]),
@@ -149,7 +159,7 @@ function seed(): DemoState {
     entry(60 * 5, 'u-admin', 'SUPER_ADMIN', 'USER_SUSPENDED', 'USER', 'u-host-2', 'Contract paused pending renewal'),
     entry(60 * 26, 'u-site-admin', 'SITE_ADMIN', 'USER_ROLES_CHANGED', 'USER', 'u-guard-2', 'Covers the night gate (ticket OPS-118)'),
   ];
-  return { users, audit, seq: 1 };
+  return { users, audit, seq: 1, requireMfaForAdmins: false, policyUpdatedAt: null };
 }
 
 /** Fallback when sessionStorage is unavailable (some private windows): changes then last until reload. */
@@ -266,6 +276,7 @@ export function createDemoBackend(actor: SessionUser) {
     lastLoginAt: u.lastLoginAt,
     locked: locked(u),
     mustChangePassword: u.mustChangePassword,
+    mfaEnabled: u.mfaEnabled,
     hasPassword: true,
     canManage: manageable(u),
     isSelf: u.id === actor.userId,
@@ -465,6 +476,9 @@ export function createDemoBackend(actor: SessionUser) {
         passwordChangedAt: u.passwordChangedAt,
         failedAttempts: u.failedAttempts,
         activeSessions: u.activeSessions,
+        mfaEnabledAt: u.mfaEnabled ? u.passwordChangedAt : null,
+        recoveryCodesLeft: u.mfaEnabled ? u.recoveryCodesLeft : 0,
+        mfaRequiredByPolicy: state.requireMfaForAdmins && isAdministrator(u.roles),
         assignableRoles: Object.keys(ROLE_PERMISSIONS).filter(r => canAssignRole(actorRoles, r as EnterpriseRole)),
         history: state.audit
           .filter(a => a.entityType === 'USER' && a.entityId === u.id && a.action !== 'LOGIN_SUCCESS' && a.action !== 'LOGIN_FAILED')
@@ -551,6 +565,57 @@ export function createDemoBackend(actor: SessionUser) {
       audit(state, 'USER_SESSIONS_REVOKED', u, reason);
       save(state);
       return { id: u.id };
+    }
+
+    if (m && method === 'POST' && m[2] === 'reset-mfa') {
+      const u = target(state, m[1], true);
+      const reason = reasonOf(body);
+      if (!u.mfaEnabled) throw new ApiError(409, 'MFA_NOT_ENABLED', 'This user has not set up two-step verification.');
+      u.mfaEnabled = false;
+      u.recoveryCodesLeft = 0;
+      u.activeSessions = 0;
+      audit(state, 'USER_MFA_RESET', u, reason);
+      save(state);
+      return { id: u.id };
+    }
+
+    if (path === '/api/v1/admin/security-settings') {
+      const active = state.users.filter(u => u.status === 'ACTIVE');
+      const admins = active.filter(u => isAdministrator(u.roles));
+      const me = state.users.find(u => u.id === actor.userId);
+      if (method === 'GET') {
+        return {
+          requireMfaForAdmins: state.requireMfaForAdmins,
+          updatedAt: state.policyUpdatedAt,
+          activeUsers: tenantWide ? active.length : null,
+          usersWithMfa: tenantWide ? active.filter(u => u.mfaEnabled).length : null,
+          administrators: tenantWide ? admins.length : null,
+          administratorsWithMfa: tenantWide ? admins.filter(u => u.mfaEnabled).length : null,
+          canEdit: tenantWide,
+          youHaveMfa: !!me?.mfaEnabled,
+        };
+      }
+      if (method === 'PUT') {
+        const reason = reasonOf(body);
+        if (!tenantWide) throw forbidden('Only organization-wide administrators change the sign-in policy.');
+        const next = body?.['requireMfaForAdmins'] === true;
+        if (next && !me?.mfaEnabled) throw new ApiError(409, 'MFA_SELF_FIRST', 'Turn on two-step verification for your own account first.');
+        state.requireMfaForAdmins = next;
+        state.policyUpdatedAt = new Date().toISOString();
+        state.audit.unshift({
+          id: `a-${state.seq++}`,
+          timestamp: state.policyUpdatedAt,
+          actorId: actor.userId,
+          actorName: actor.fullName,
+          actorRole: actor.role,
+          action: 'SECURITY_SETTINGS_CHANGED',
+          entityType: 'TENANT',
+          entityId: 'demo',
+          reason,
+        });
+        save(state);
+        return { requireMfaForAdmins: next };
+      }
     }
 
     throw new ApiError(404, 'NOT_FOUND', 'This part of the console needs the VMS server; the demo shows sample data only.');

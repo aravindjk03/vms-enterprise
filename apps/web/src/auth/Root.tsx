@@ -3,9 +3,21 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import { colors, radius } from '@vms/ui/tokens';
 import { ToastHost, showToast } from '@vms/ui';
 import { App } from '../App.js';
-import { logout, mightHaveSession, probeApi, refreshSession, setDemoBackend, setSessionLostHandler, type SessionUser } from '../api/client.js';
+import {
+  apiRequest,
+  logout,
+  mightHaveSession,
+  probeApi,
+  refreshSession,
+  setAccessRequirementHandler,
+  setDemoBackend,
+  setSessionLostHandler,
+  type SessionUser,
+} from '../api/client.js';
 import { createDemoBackend, demoSessionUser, recordDemoSignIn } from '../demo/demoBackend.js';
 import { ChangePasswordDialog, DEMO_ACCOUNTS, DemoLoginView, ForcePasswordChangeView, LoginView, type DemoAccount } from './AuthViews.js';
+import { MfaEnrollmentView, TwoStepDialog } from './TwoStep.js';
+import { SessionsDialog } from './Sessions.js';
 
 type Mode =
   | { kind: 'probing' }
@@ -14,9 +26,17 @@ type Mode =
   | { kind: 'demo'; account: DemoAccount; user: SessionUser }
   | { kind: 'signed-out'; notice?: string }
   | { kind: 'must-change'; user: SessionUser; password?: string }
+  | { kind: 'mfa-enroll'; user: SessionUser }
   | { kind: 'live'; user: SessionUser };
 
 const RETRY_SECONDS = 10;
+
+/** Where a signed-in user lands: a temporary password first, then any required two-step setup, then the console. */
+function landing(user: SessionUser, password?: string): Mode {
+  if (user.mustChangePassword) return { kind: 'must-change', user, password };
+  if (user.mfaEnrollmentRequired) return { kind: 'mfa-enroll', user };
+  return { kind: 'live', user };
+}
 const DEMO_SESSION_KEY = 'vms.demo.account';
 
 function restoreDemoAccount(): DemoAccount | null {
@@ -57,9 +77,16 @@ export const Root: React.FC = () => {
   const [mode, setMode] = useState<Mode>({ kind: 'probing' });
   const [attempt, setAttempt] = useState(0);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [dialog, setDialog] = useState<'two-step' | 'devices' | null>(null);
 
   useEffect(() => {
     setSessionLostHandler(() => setMode({ kind: 'signed-out', notice: 'Your session has ended. Please sign in again.' }));
+    // A rule changed while signed in (e.g. two-step became required): reload who we are and route again.
+    setAccessRequirementHandler(() => {
+      apiRequest<SessionUser>('/api/v1/auth/me')
+        .then(user => setMode(landing(user)))
+        .catch(() => undefined);
+    });
   }, []);
 
   useEffect(() => {
@@ -76,7 +103,7 @@ export const Root: React.FC = () => {
       const user = mightHaveSession() ? await refreshSession() : null;
       if (cancelled) return;
       if (!user) return setMode({ kind: 'signed-out' });
-      setMode(user.mustChangePassword ? { kind: 'must-change', user } : { kind: 'live', user });
+      setMode(landing(user));
     })();
     return () => {
       cancelled = true;
@@ -93,6 +120,7 @@ export const Root: React.FC = () => {
   const signOut = async () => {
     await logout();
     setChangingPassword(false);
+    setDialog(null);
     setMode({ kind: 'signed-out', notice: 'You have signed out.' });
   };
 
@@ -154,7 +182,7 @@ export const Root: React.FC = () => {
     return (
       <LoginView
         notice={mode.notice}
-        onSignedIn={(user, password) => setMode(user.mustChangePassword ? { kind: 'must-change', user, password } : { kind: 'live', user })}
+        onSignedIn={(user, password) => setMode(landing(user, password))}
       />
     );
   }
@@ -165,8 +193,23 @@ export const Root: React.FC = () => {
           user={mode.user}
           knownCurrentPassword={mode.password}
           onDone={user => {
-            setMode({ kind: 'live', user });
+            setMode(landing(user));
             showToast('Password saved. Welcome to VMS Enterprise.');
+          }}
+          onSignOut={signOut}
+        />
+        <ToastHost />
+      </>
+    );
+  }
+  if (mode.kind === 'mfa-enroll') {
+    return (
+      <>
+        <MfaEnrollmentView
+          user={mode.user}
+          onDone={user => {
+            setMode(landing(user));
+            showToast('Two-step verification is on.');
           }}
           onSignOut={signOut}
         />
@@ -178,8 +221,31 @@ export const Root: React.FC = () => {
     <>
       <App
         key={mode.user.userId}
-        session={{ user: mode.user, onSignOut: signOut, onChangePassword: () => setChangingPassword(true) }}
+        session={{
+          user: mode.user,
+          onSignOut: signOut,
+          onChangePassword: () => setChangingPassword(true),
+          onTwoStep: () => setDialog('two-step'),
+          onDevices: () => setDialog('devices'),
+        }}
       />
+      {dialog === 'two-step' && (
+        <TwoStepDialog
+          user={mode.user}
+          onClose={() => setDialog(null)}
+          onChanged={(user, note) => {
+            setDialog(null);
+            setMode(landing(user));
+            showToast(note);
+          }}
+        />
+      )}
+      {dialog === 'devices' && (
+        <SessionsDialog
+          onClose={() => setDialog(null)}
+          onSignedOutOthers={count => showToast(count === 1 ? 'Signed out 1 other device.' : `Signed out ${count} other devices.`)}
+        />
+      )}
       {changingPassword && (
         <ChangePasswordDialog
           user={mode.user}

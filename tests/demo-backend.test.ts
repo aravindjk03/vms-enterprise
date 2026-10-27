@@ -81,6 +81,28 @@ test('demo backend applies the same access rules as the server', async t => {
     await rejects(org('PUT', '/api/v1/admin/users/u-admin/roles', { roles: ['HOST'], reason: 'downgrade' }), 403);
   });
 
+  await t.test('two-step verification: reset by an administrator and the organization policy', async () => {
+    resetDemoState();
+    const admin = backendFor('admin', 'Dana Whitfield', 'SUPER_ADMIN');
+    const before = (await admin('GET', '/api/v1/admin/users/u-security-manager', undefined)) as Record<string, unknown>;
+    assert.equal(before['mfaEnabled'], true);
+    await rejects(admin('POST', '/api/v1/admin/users/u-security-manager/reset-mfa', {}), 400);
+    await admin('POST', '/api/v1/admin/users/u-security-manager/reset-mfa', { reason: 'Lost phone' });
+    const after = (await admin('GET', '/api/v1/admin/users/u-security-manager', undefined)) as Record<string, unknown>;
+    assert.equal(after['mfaEnabled'], false);
+    await rejects(admin('POST', '/api/v1/admin/users/u-security-manager/reset-mfa', { reason: 'again' }), 409);
+
+    const siteAdmin = backendFor('site.admin', 'Marcus Okafor', 'SITE_ADMIN');
+    await rejects(siteAdmin('PUT', '/api/v1/admin/security-settings', { requireMfaForAdmins: true, reason: 'policy' }), 403);
+    assert.equal(((await siteAdmin('GET', '/api/v1/admin/security-settings', undefined)) as Record<string, unknown>)['administrators'], null);
+    await admin('PUT', '/api/v1/admin/security-settings', { requireMfaForAdmins: true, reason: 'Security review' });
+    const settings = (await admin('GET', '/api/v1/admin/security-settings', undefined)) as Record<string, number | boolean>;
+    assert.equal(settings['requireMfaForAdmins'], true);
+    assert.ok((settings['administrators'] as number) > (settings['administratorsWithMfa'] as number));
+    const marcus = (await admin('GET', '/api/v1/admin/users/u-site-admin', undefined)) as Record<string, unknown>;
+    assert.equal(marcus['mfaRequiredByPolicy'], true);
+  });
+
   await t.test('roles without USER_MANAGE are refused and the dashboard hides counts the role cannot read', async () => {
     resetDemoState();
     const host = backendFor('host', 'Priya Raman', 'HOST');

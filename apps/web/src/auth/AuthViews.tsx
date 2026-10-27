@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Building2, Check, Eye, EyeOff, KeyRound, Leaf, Loader2, Shield, ShieldCheck, X } from 'lucide-react';
-import { colors, radius, shadows } from '@vms/ui/tokens';
-import { ApiError, changePassword, login, type SessionUser } from '../api/client.js';
+import { AlertCircle, Building2, Check, Eye, EyeOff, KeyRound, Leaf, Loader2, Shield, ShieldCheck, Smartphone, X } from 'lucide-react';
+import { colors, radius, shadows, typography } from '@vms/ui/tokens';
+import { ApiError, changePassword, login, verifySecondFactor, type SessionUser } from '../api/client.js';
 import type { EnterpriseRole } from '@vms/types';
 
 /* -------------------------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ const BrandStory: React.FC = () => (
  * Form parts
  * -----------------------------------------------------------------------------------------------*/
 
-const inputStyle: React.CSSProperties = {
+export const inputStyle: React.CSSProperties = {
   width: '100%',
   height: '44px',
   padding: '0 14px',
@@ -205,7 +205,7 @@ export const PrimaryButton: React.FC<{ busy?: boolean; children: React.ReactNode
   </button>
 );
 
-const Heading: React.FC<{ title: string; text: string }> = ({ title, text }) => (
+export const Heading: React.FC<{ title: string; text: string }> = ({ title, text }) => (
   <div style={{ marginBottom: '24px' }}>
     <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 700, color: colors.slate[900], letterSpacing: '-0.01em' }}>{title}</h1>
     <p style={{ margin: '8px 0 0', fontSize: '15px', lineHeight: 1.5, color: colors.slate[600] }}>{text}</p>
@@ -237,15 +237,31 @@ export const LoginView: React.FC<{ notice?: string; onSignedIn: (user: SessionUs
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [challenge, setChallenge] = useState<string | null>(null);
+
+  if (challenge) {
+    return (
+      <SecondFactorView
+        challenge={challenge}
+        onSignedIn={user => onSignedIn(user, password)}
+        onRestart={message => {
+          setChallenge(null);
+          setPassword('');
+          setError(message);
+        }}
+      />
+    );
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const user = await login(tenantCode.trim(), username.trim(), password);
+      const result = await login(tenantCode.trim(), username.trim(), password);
       writeStored('vms.tenant', tenantCode.trim());
-      onSignedIn(user, password);
+      if ('mfaRequired' in result) setChallenge(result.challenge);
+      else onSignedIn(result, password);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -273,6 +289,106 @@ export const LoginView: React.FC<{ notice?: string; onSignedIn: (user: SessionUs
           Forgot your password or locked out? Your site or organization administrator can unlock the account or issue a temporary password.
         </p>
       </form>
+    </AuthLayout>
+  );
+};
+
+/** Second sign-in step: a 6-digit code from the authenticator app, or a recovery code. */
+const SecondFactorView: React.FC<{ challenge: string; onSignedIn: (user: SessionUser) => void; onRestart: (message: string) => void }> = ({
+  challenge,
+  onSignedIn,
+  onRestart,
+}) => {
+  const [code, setCode] = useState('');
+  const [recovery, setRecovery] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const send = async (value: string) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onSignedIn(await verifySecondFactor(challenge, value));
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'MFA_CHALLENGE_EXPIRED') return onRestart('That sign-in timed out. Please sign in again.');
+      if (err instanceof ApiError && err.code === 'MFA_SECRET_UNREADABLE') {
+        setError(err.message);
+        return;
+      }
+      setError(
+        err instanceof ApiError
+          ? err.status === 429
+            ? 'Too many attempts. Wait a minute and try again.'
+            : recovery
+              ? 'That recovery code is not correct or has already been used.'
+              : 'That code is not correct. Enter the newest code shown in your app.'
+          : 'The server could not be reached. Check your connection and try again.'
+      );
+      setCode('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthLayout>
+      <div style={{ display: 'grid', placeItems: 'center', width: '48px', height: '48px', borderRadius: radius.xl, backgroundColor: colors.primary[50], color: colors.primary[600], marginBottom: '18px' }}>
+        <Smartphone size={24} aria-hidden="true" />
+      </div>
+      <Heading
+        title="Two-step verification"
+        text={recovery ? 'Enter one of the recovery codes you saved when you set up two-step verification.' : 'Enter the 6-digit code from the authenticator app on your phone.'}
+      />
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          void send(code.trim());
+        }}
+        style={{ display: 'grid', gap: '16px' }}
+      >
+        {error && <ErrorBox>{error}</ErrorBox>}
+        {recovery ? (
+          <TextInput id="code" label="Recovery code" value={code} onChange={e => setCode(e.target.value.toUpperCase())} autoComplete="off" placeholder="XXXXX-XXXXX" maxLength={11} autoFocus required spellCheck={false} />
+        ) : (
+          <TextInput
+            id="code"
+            label="Verification code"
+            value={code}
+            onChange={e => {
+              const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+              setCode(digits);
+              if (digits.length === 6) void send(digits);
+            }}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456"
+            autoFocus
+            required
+            style={{ ...inputStyle, fontSize: '22px', letterSpacing: '0.3em', fontFamily: typography.fontFamily.mono, textAlign: 'center' }}
+          />
+        )}
+        <PrimaryButton busy={busy}>{busy ? 'Checking…' : 'Verify'}</PrimaryButton>
+      </form>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => {
+            setRecovery(!recovery);
+            setCode('');
+            setError(null);
+          }}
+          style={{ border: 'none', background: 'none', padding: 0, fontSize: '14px', fontWeight: 600, color: colors.primary[600], cursor: 'pointer' }}
+        >
+          {recovery ? 'Use the authenticator app' : 'Use a recovery code'}
+        </button>
+        <button type="button" onClick={() => onRestart('')} style={{ border: 'none', background: 'none', padding: 0, fontSize: '14px', color: colors.slate[600], cursor: 'pointer' }}>
+          Back to sign in
+        </button>
+      </div>
+      <p style={{ margin: '20px 0 0', fontSize: '13px', color: colors.slate[500], lineHeight: 1.5 }}>
+        Lost your phone and your recovery codes? An administrator can reset two-step verification for your account.
+      </p>
     </AuthLayout>
   );
 };

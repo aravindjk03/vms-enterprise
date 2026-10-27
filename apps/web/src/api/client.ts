@@ -25,6 +25,17 @@ export interface SessionUser {
   organizationName?: string;
   /** Signed in with a temporary password: only the password change screen is available. */
   mustChangePassword?: boolean;
+  /** Two-step verification is on for this account. */
+  mfaEnabled?: boolean;
+  /** The organization requires two-step verification for this administrator and it is not set up yet. */
+  mfaEnrollmentRequired?: boolean;
+}
+
+/** The password was right and the account uses two-step verification: a code is needed next. */
+export interface SecondFactorChallenge {
+  mfaRequired: true;
+  challenge: string;
+  challengeExpiresAt: string;
 }
 
 interface TokenResponse {
@@ -55,6 +66,13 @@ export function setDemoBackend(handler: DemoBackend | null): void {
 let accessToken: string | null = null;
 let refreshInFlight: Promise<SessionUser | null> | null = null;
 let onSessionLost: (() => void) | null = null;
+
+let onAccessRequirement: ((code: 'PASSWORD_CHANGE_REQUIRED' | 'MFA_ENROLLMENT_REQUIRED') => void) | null = null;
+
+/** Called when the server says the user must change their password or set up two-step verification first. */
+export function setAccessRequirementHandler(handler: (code: 'PASSWORD_CHANGE_REQUIRED' | 'MFA_ENROLLMENT_REQUIRED') => void): void {
+  onAccessRequirement = handler;
+}
 
 export function setSessionLostHandler(handler: () => void): void {
   onSessionLost = handler;
@@ -104,12 +122,27 @@ export async function changePassword(currentPassword: string, newPassword: strin
   return apiRequest<SessionUser>('/api/v1/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } });
 }
 
-export async function login(tenantCode: string, username: string, password: string): Promise<SessionUser> {
+export async function login(tenantCode: string, username: string, password: string): Promise<SessionUser | SecondFactorChallenge> {
   const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tenantCode, username, password }),
+  });
+  if (!res.ok) throw await parseError(res);
+  const body = (await res.json()) as TokenResponse | SecondFactorChallenge;
+  if ('mfaRequired' in body) return body;
+  accessToken = body.accessToken;
+  return body.user;
+}
+
+/** Second sign-in step: a code from the authenticator app or a recovery code. */
+export async function verifySecondFactor(challenge: string, code: string): Promise<SessionUser> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/login/verify`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge, code }),
   });
   if (!res.ok) throw await parseError(res);
   const body = (await res.json()) as TokenResponse;
@@ -190,7 +223,11 @@ export async function apiRequest<T>(
     }
     res = await send();
   }
-  if (!res.ok) throw await parseError(res);
+  if (!res.ok) {
+    const error = await parseError(res);
+    if (res.status === 403 && (error.code === 'PASSWORD_CHANGE_REQUIRED' || error.code === 'MFA_ENROLLMENT_REQUIRED')) onAccessRequirement?.(error.code);
+    throw error;
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }

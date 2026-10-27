@@ -16,6 +16,15 @@ const ACTION_TEXT: Record<string, string> = {
   USER_SUSPENDED: 'Suspended a user',
   USER_INACTIVE: 'Deactivated a user',
   USER_ACTIVE: 'Reactivated a user',
+  USER_MFA_RESET: 'Reset two-step verification',
+  MFA_ENABLED: 'Turned on two-step verification',
+  MFA_DISABLED: 'Turned off two-step verification',
+  MFA_RECOVERY_CODES_REGENERATED: 'Created new recovery codes',
+  MFA_RECOVERY_CODE_USED: 'Used a recovery code',
+  SECURITY_SETTINGS_CHANGED: 'Changed the sign-in policy',
+  SESSION_REVOKED: 'Signed out a device',
+  SESSIONS_REVOKED_OTHERS: 'Signed out other devices',
+  REFRESH_TOKEN_REUSE: 'Reused session token detected',
   VISITOR_REGISTERED: 'Registered a visitor',
   VISITOR_APPROVED: 'Approved a visit',
   VISITOR_REJECTED: 'Rejected a visit',
@@ -49,8 +58,10 @@ export function describeAction(action: string): string {
 
 /** Security-relevant actions are highlighted in the activity feed and audit log. */
 export function actionTone(action: string): 'danger' | 'warning' | 'neutral' {
-  if (action === 'LOGIN_FAILED' || action === 'LOGIN_LOCKED') return 'danger';
-  if (action.startsWith('USER_') || action === 'PASSWORD_CHANGED' || action === 'CREDENTIAL_SET') return 'warning';
+  if (action === 'LOGIN_FAILED' || action === 'LOGIN_LOCKED' || action === 'REFRESH_TOKEN_REUSE') return 'danger';
+  if (action.startsWith('USER_') || action.startsWith('MFA_') || action.startsWith('SECURITY_') || action === 'PASSWORD_CHANGED' || action === 'CREDENTIAL_SET') {
+    return 'warning';
+  }
   return 'neutral';
 }
 

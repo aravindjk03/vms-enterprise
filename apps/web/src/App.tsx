@@ -93,6 +93,7 @@ import { LiveTableView, LiveVisitorsView, renderDate, renderStatus } from './vie
 import { LiveDashboard } from './views/live/Dashboard.js';
 import { UsersView } from './views/live/admin/UsersView.js';
 import { RolesView } from './views/live/admin/RolesView.js';
+import { SecurityView } from './views/live/admin/SecurityView.js';
 import { AuditLogView } from './views/live/admin/AuditLogView.js';
 import { ServiceModule, serviceNavFor } from './views/live/service/ServiceModule.js';
 import { apiRequest, type SessionUser } from './api/client.js';
@@ -107,6 +108,8 @@ export interface AppProps {
     user: SessionUser;
     onSignOut: () => void;
     onChangePassword: () => void;
+    onTwoStep: () => void;
+    onDevices: () => void;
   };
   /** Demo build: the demo account the visitor signed in with (sample data, no API). */
   demo?: {
@@ -136,12 +139,13 @@ const LIVE_NAV: Record<string, Array<{ route: string; label: string; anyOf: stri
   admin: [
     { route: '/admin/users', label: 'Users', anyOf: ['USER_MANAGE'] },
     { route: '/admin/roles', label: 'Roles & permissions', anyOf: ['USER_MANAGE'] },
+    { route: '/admin/security', label: 'Sign-in security', anyOf: ['USER_MANAGE'] },
     { route: '/admin/audit', label: 'Audit log', anyOf: ['AUDIT_LOG_READ'] },
   ],
 };
 
 /** Screens the demo build renders with the live console's components (answered by the in-browser demo backend). */
-const DEMO_SHARED_ROUTES = ['/dashboard', '/admin/users', '/admin/roles', '/admin/audit'];
+const DEMO_SHARED_ROUTES = ['/dashboard', '/admin/users', '/admin/roles', '/admin/security', '/admin/audit'];
 
 /** Roles that see the sample-data preview screens of a group; tenant-wide admins see what super admins see. */
 function holdsAnyRole(user: SessionUser, roles: string[]): boolean {
@@ -672,6 +676,7 @@ export const App: React.FC<AppProps> = ({
     }
     if (activeRoute === '/admin/users') return <UsersView user={user} />;
     if (activeRoute === '/admin/roles') return <RolesView />;
+    if (activeRoute === '/admin/security') return <SecurityView onSetUpTwoStep={session?.onTwoStep} />;
     if (activeRoute.startsWith('/services')) {
       return <ServiceModule route={activeRoute} user={user} navigate={setActiveRoute} />;
     }
@@ -1316,6 +1321,8 @@ export const App: React.FC<AppProps> = ({
   const userActions: ShellMenuAction[] = session
     ? [
         { label: 'Change password', icon: menuIcons.password, onSelect: session.onChangePassword },
+        { label: session.user.mfaEnabled ? 'Two-step verification: on' : 'Set up two-step verification', icon: menuIcons.twoStep, onSelect: session.onTwoStep },
+        { label: 'Signed-in devices', icon: menuIcons.devices, onSelect: session.onDevices },
         { label: 'Sign out', icon: menuIcons.signOut, onSelect: session.onSignOut, tone: 'danger' },
       ]
     : [{ label: 'Sign out of demo', icon: menuIcons.signOut, onSelect: () => demo?.onSignOut(), tone: 'danger' }];

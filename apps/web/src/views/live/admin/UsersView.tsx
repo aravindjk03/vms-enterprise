@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Ban, KeyRound, Lock, LogOut, Pencil, Search, ShieldCheck, Unlock, UserCheck, UserPlus } from 'lucide-react';
+import { Ban, KeyRound, Lock, LogOut, Pencil, Search, ShieldCheck, Smartphone, Unlock, UserCheck, UserPlus } from 'lucide-react';
 import { colors, radius } from '@vms/ui/tokens';
 import type { ColumnDef } from '@vms/ui';
 import type { SessionUser } from '../../../api/client.js';
@@ -75,6 +75,7 @@ export const UsersView: React.FC<{ user: SessionUser; startCreating?: boolean }>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: colors.slate[900] }}>
               {r.fullName}
+              {r.mfaEnabled && <ShieldCheck size={14} color={colors.status.success.fg} aria-label="Two-step verification on" />}
               {r.isSelf && <Chip tone="primary">You</Chip>}
             </div>
             <div style={{ fontSize: '12px', color: colors.slate[500], maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.email}>
@@ -435,6 +436,7 @@ type PendingAction =
   | { kind: 'reset' }
   | { kind: 'unlock' }
   | { kind: 'revoke' }
+  | { kind: 'reset-mfa' }
   | { kind: 'status'; status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE' }
   | { kind: 'profile' }
   | { kind: 'roles' }
@@ -499,6 +501,7 @@ const UserDetail: React.FC<{ id: string; roles: Roles; sites: SiteOption[]; onBa
             {u.locked && actionButton('Unlock', <Unlock size={15} />, { kind: 'unlock' })}
             {actionButton('Reset password', <KeyRound size={15} />, { kind: 'reset' })}
             {u.activeSessions > 0 && actionButton('Sign out everywhere', <LogOut size={15} />, { kind: 'revoke' })}
+            {u.mfaEnabled && actionButton('Reset two-step', <Smartphone size={15} />, { kind: 'reset-mfa' })}
             {u.status === 'ACTIVE' ? (
               <>
                 {actionButton('Suspend', <Ban size={15} />, { kind: 'status', status: 'SUSPENDED' }, true)}
@@ -590,6 +593,14 @@ const UserDetail: React.FC<{ id: string; roles: Roles; sites: SiteOption[]; onBa
                 ['Failed attempts', String(u.failedAttempts)],
                 ['Active sessions', String(u.activeSessions)],
                 ['Account', u.locked ? 'Locked after failed sign-ins' : 'Not locked'],
+                [
+                  'Two-step verification',
+                  u.mfaEnabled
+                    ? `On · ${u.recoveryCodesLeft ?? 0} recovery codes left`
+                    : u.mfaRequiredByPolicy
+                      ? 'Off · required by your organization at next sign-in'
+                      : 'Off',
+                ],
               ]}
             />
           </Section>
@@ -655,6 +666,18 @@ const UserDetail: React.FC<{ id: string; roles: Roles; sites: SiteOption[]; onBa
           error={sendError}
           onClose={close}
           onConfirm={async reason => (await send('POST', `/api/v1/admin/users/${u.id}/revoke-sessions`, { reason })) && done()}
+        />
+      )}
+      {pending?.kind === 'reset-mfa' && (
+        <ReasonDialog
+          title="Reset two-step verification?"
+          description={`Use this when ${u.fullName} has lost their phone and recovery codes. Their authenticator is removed and they are signed out everywhere. They then sign in with their password${u.mfaRequiredByPolicy ? ' and must set up two-step verification again' : ''}. Confirm their identity first.`}
+          confirmLabel="Reset two-step"
+          danger
+          busy={busy}
+          error={sendError}
+          onClose={close}
+          onConfirm={async reason => (await send('POST', `/api/v1/admin/users/${u.id}/reset-mfa`, { reason })) && done()}
         />
       )}
       {pending?.kind === 'status' && (

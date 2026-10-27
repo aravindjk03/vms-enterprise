@@ -21,6 +21,7 @@ interface AuditRow {
 }
 
 const ENTITY_TYPES = [
+  'TENANT',
   'USER',
   'USER_SESSION',
   'VISITOR_TRANSACTION',
@@ -30,6 +31,9 @@ const ENTITY_TYPES = [
   'SERVICE_PROVIDER',
   'SERVICE_TECHNICIAN',
 ];
+/** Record types in the words the console uses (an organization is a tenant in the database). */
+const recordName = (type: string) => (type === 'TENANT' ? 'Organization' : roleName(type));
+
 const ACTIONS = [
   'LOGIN_SUCCESS',
   'LOGIN_FAILED',
@@ -42,6 +46,11 @@ const ACTIONS = [
   'USER_UNLOCKED',
   'USER_SUSPENDED',
   'USER_INACTIVE',
+  'MFA_ENABLED',
+  'MFA_DISABLED',
+  'USER_MFA_RESET',
+  'SECURITY_SETTINGS_CHANGED',
+  'REFRESH_TOKEN_REUSE',
   'VISITOR_APPROVED',
   'VISITOR_CHECKED_IN',
   'VISITOR_CHECKED_OUT',
@@ -97,7 +106,7 @@ export const AuditLogView: React.FC = () => {
       header: 'Record',
       render: r => (
         <div>
-          <div style={{ color: colors.slate[700] }}>{roleName(r.entityType)}</div>
+          <div style={{ color: colors.slate[700] }}>{recordName(r.entityType)}</div>
           <div
             style={{
               fontFamily: 'JetBrains Mono, ui-monospace, monospace',
@@ -163,7 +172,7 @@ export const AuditLogView: React.FC = () => {
           <option value="">All record types</option>
           {ENTITY_TYPES.map(t => (
             <option key={t} value={t}>
-              {roleName(t)}
+              {recordName(t)}
             </option>
           ))}
         </select>

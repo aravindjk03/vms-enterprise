@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, KeyRound, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Shield, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, KeyRound, LogOut, Menu, MonitorSmartphone, PanelLeftClose, PanelLeftOpen, Search, Shield, ShieldCheck, X } from 'lucide-react';
 import { colors, radius, shadows, typography } from '@vms/ui/tokens';
 
 /**
@@ -477,4 +477,10 @@ const UserCard: React.FC<{ user: ShellUser; actions: ShellMenuAction[]; collapse
   );
 };
 
-export const menuIcons = { password: <KeyRound size={16} />, signOut: <LogOut size={16} />, check: <Check size={16} /> };
+export const menuIcons = {
+  password: <KeyRound size={16} />,
+  twoStep: <ShieldCheck size={16} />,
+  devices: <MonitorSmartphone size={16} />,
+  signOut: <LogOut size={16} />,
+  check: <Check size={16} />,
+};

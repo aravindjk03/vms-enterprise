@@ -25,6 +25,8 @@ export interface UserRow {
   locked: boolean;
   mustChangePassword: boolean;
   hasPassword: boolean;
+  /** Two-step verification is on. */
+  mfaEnabled?: boolean;
   canManage: boolean;
   isSelf: boolean;
 }
@@ -34,6 +36,9 @@ export interface UserDetailData extends UserRow {
   passwordChangedAt: string | null;
   failedAttempts: number;
   activeSessions: number;
+  mfaEnabledAt?: string | null;
+  recoveryCodesLeft?: number;
+  mfaRequiredByPolicy?: boolean;
   assignableRoles: string[];
   history: Array<{ timestamp: string; action: string; actorRole: string | null; reason: string | null }>;
 }
