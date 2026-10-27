@@ -49,6 +49,8 @@ coverage/
 # Compiled TypeScript emitted next to sources (Vite would serve these stale files instead of .ts/.tsx)
 apps/**/*.js
 apps/**/*.d.ts
+# Hand-written ambient declarations (not compiler output)
+!apps/web/src/env.d.ts
 packages/**/*.js
 packages/**/*.d.ts
 services/**/*.js

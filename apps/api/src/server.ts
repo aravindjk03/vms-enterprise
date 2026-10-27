@@ -13,6 +13,9 @@ async function main(): Promise<void> {
   if (privilegedProblem) {
     app.log.warn(`DEVELOPMENT ONLY: ${privilegedProblem}; tenant row-level security is NOT enforced for this connection.`);
   }
+  if (config.env === 'production' && !config.mfaEncryptionKey) {
+    app.log.warn('MFA_ENCRYPTION_KEY is not set: two-step verification secrets are encrypted with a key derived from JWT_SECRET, so rotating JWT_SECRET will require users to set up two-step verification again.');
+  }
 
   // Durable background processing (GHG activity capture). Disable per instance with OUTBOX_WORKER_ENABLED=false.
   const worker = new OutboxWorker(db, { [TRANSPORT_CAPTURED_EVENT]: captureTransportActivity }, { logger: app.log });

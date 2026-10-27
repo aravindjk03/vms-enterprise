@@ -20,10 +20,10 @@ import {
 } from '@vms/service';
 import type { RouteContext } from '../../app.js';
 import { authorize, type AuthenticatedUser } from '../../context.js';
-import type { Tx } from '../../db.js';
+import { isUuid, type Tx } from '../../db.js';
 import { HttpError, notFound } from '../../errors.js';
 import { idempotent, sendResult } from '../../idempotency.js';
-import { transitionRequest } from './requests.js';
+import { lockRequestForWork, transitionRequest } from './requests.js';
 import {
   addProgressEvent,
   assertDocument,
@@ -433,18 +433,7 @@ export async function registerWorkOrderRoutes(app: FastifyInstance, ctx: RouteCo
         const body = WorkOrderCreate.parse(request.body);
         await validateWorkOrderInput(tx, user, body);
 
-        let req: { request_id: string; reference_number: string; site_id: string; status: string; requested_by_user_id: string | null } | undefined;
-        if (body.requestId) {
-          const r = await tx.query('SELECT request_id, reference_number, site_id, status, requested_by_user_id FROM service_requests WHERE request_id = $1 FOR UPDATE', [
-            body.requestId,
-          ]);
-          req = r.rows[0];
-          if (!req) throw new HttpError(400, 'VALIDATION_ERROR', 'Service request not found.');
-          if (req.site_id !== body.siteId) throw new HttpError(400, 'VALIDATION_ERROR', 'Work order site must match the request site.');
-          if (!['APPROVED', 'WORK_ORDERED'].includes(req.status)) {
-            throw new HttpError(409, 'INVALID_STATE', `Request is ${req.status}; work orders can only be raised from approved requests.`);
-          }
-        }
+        const req = body.requestId ? await lockRequestForWork(tx, body.requestId, body.siteId) : undefined;
 
         const created = await createWorkOrder(tx, user, body);
         if (req) await transitionRequest(tx, user, req, 'WORK_ORDER_CREATED');
@@ -719,19 +708,36 @@ export async function registerWorkOrderRoutes(app: FastifyInstance, ctx: RouteCo
       const body = Evidence.parse(request.body);
       nextWorkOrderStatus(wo.status, 'EVIDENCE_ATTACHED');
       await assertDocument(tx, body.evidenceDocumentId);
-      const upd = await tx.query(
+      if (!isUuid(deliverableId)) throw notFound('Deliverable');
+      const current = await tx.query<{ description: string; evidence_note: string | null; evidence_document_id: string | null }>(
+        'SELECT description, evidence_note, evidence_document_id FROM service_work_order_deliverables WHERE deliverable_id = $1 AND work_order_id = $2 FOR UPDATE',
+        [deliverableId, wo.work_order_id]
+      );
+      const deliverable = current.rows[0];
+      if (!deliverable) throw notFound('Deliverable');
+      // Evidence can be replaced while work is open (e.g. after a completion was returned). The earlier
+      // evidence stays in the append-only progress log and the audit trail; nothing is lost.
+      const replaced = deliverable.evidence_note !== null || deliverable.evidence_document_id !== null;
+      if (replaced && wo.status === 'COMPLETION_SUBMITTED') {
+        throw new HttpError(409, 'UNDER_REVIEW', 'Completion is under review. The reviewer must return it before evidence can be replaced.');
+      }
+      await tx.query(
         `UPDATE service_work_order_deliverables
             SET satisfied_at = now(), satisfied_by_user_id = $3, evidence_note = $4, evidence_document_id = $5
-          WHERE deliverable_id = $1 AND work_order_id = $2 AND satisfied_at IS NULL RETURNING description`,
+          WHERE deliverable_id = $1 AND work_order_id = $2`,
         [deliverableId, wo.work_order_id, user.userId, body.evidenceNote, body.evidenceDocumentId ?? null]
       );
-      if (!upd.rowCount) throw new HttpError(409, 'ALREADY_SATISFIED', 'Deliverable not found or already has evidence.');
       await addProgressEvent(tx, user, wo, {
         eventType: 'EVIDENCE_ATTACHED',
-        comment: `${upd.rows[0].description}: ${body.evidenceNote}`,
+        comment: replaced
+          ? `${deliverable.description}: ${body.evidenceNote} (replaces: ${deliverable.evidence_note ?? 'document'})`
+          : `${deliverable.description}: ${body.evidenceNote}`,
         evidenceDocumentId: body.evidenceDocumentId ?? null,
       });
-      await audit(tx, user, request.id, 'SERVICE_EVIDENCE_ATTACHED', 'SERVICE_WORK_ORDER', wo.work_order_id, { after: { deliverableId } });
+      await audit(tx, user, request.id, replaced ? 'SERVICE_EVIDENCE_REPLACED' : 'SERVICE_EVIDENCE_ATTACHED', 'SERVICE_WORK_ORDER', wo.work_order_id, {
+        before: replaced ? { deliverableId, evidenceNote: deliverable.evidence_note, evidenceDocumentId: deliverable.evidence_document_id } : undefined,
+        after: { deliverableId, evidenceNote: body.evidenceNote, evidenceDocumentId: body.evidenceDocumentId ?? null },
+      });
       return { id: deliverableId };
     })
   );

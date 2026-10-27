@@ -24,7 +24,7 @@ export const OperationsDashboardView: React.FC = () => {
       <OccupancyPanel stats={DEMO_OCCUPANCY} siteName="Chennai Radial Tyre Plant — Real-time Headcounts" />
 
       {/* 2. Operations Breakdown Grids (Visitors, Contractors, Vehicles, Materials) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
         {/* Visitors Breakdown */}
         <Card title="Visitor Operations" subtitle="Expected, Arrived, Inside, Exited, Overdue">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', textAlign: 'center' }}>

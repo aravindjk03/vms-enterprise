@@ -1,5 +1,5 @@
 import type { EnterpriseRole, UserContext } from '@vms/types';
-import { evaluateAccess, type PermissionAction, type ResourceContext } from '@vms/permissions';
+import { evaluateAccess, hasPermissionMatch, ROLE_PERMISSIONS, type PermissionAction, type ResourceContext } from '@vms/permissions';
 import type { Tx } from './db.js';
 import { HttpError } from './errors.js';
 
@@ -29,6 +29,22 @@ const ROLE_PRIORITY: EnterpriseRole[] = [
 export interface AuthenticatedUser extends UserContext {
   username: string;
   fullName: string;
+  email: string;
+  organizationName: string;
+  /** Set after an administrator issues a temporary password; only the auth endpoints work until changed. */
+  mustChangePassword: boolean;
+  /** Two-step verification is set up and confirmed for this user. */
+  mfaEnabled: boolean;
+  /** The organization requires two-step verification for this user (an administrator) and it is not set up yet. */
+  mfaEnrollmentRequired: boolean;
+}
+
+/** Users who administer people or the system; the organization can require two-step verification for them. */
+export function isAdministrator(roles: string[]): boolean {
+  return roles.some(r => {
+    const permissions = (ROLE_PERMISSIONS as Record<string, string[]>)[r] ?? [];
+    return permissions.includes('USER_MANAGE') || permissions.includes('SYSTEM_ADMIN_MANAGE');
+  });
 }
 
 /**
@@ -43,9 +59,25 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     organization_id: string;
     username: string;
     full_name: string;
+    email: string;
+    organization_name: string | null;
     status: string;
     is_active: boolean;
-  }>('SELECT user_id, tenant_id, organization_id, username::text, full_name, status, is_active FROM users WHERE user_id = $1', [userId]);
+    must_change_password: boolean | null;
+    mfa_enabled: boolean;
+    require_mfa_for_admins: boolean | null;
+  }>(
+    `SELECT u.user_id, u.tenant_id, u.organization_id, u.username::text, u.full_name, u.email::text, u.status, u.is_active,
+            c.must_change_password, o.name AS organization_name,
+            (m.enabled_at IS NOT NULL) AS mfa_enabled, s.require_mfa_for_admins
+       FROM users u
+       LEFT JOIN user_credentials c ON c.user_id = u.user_id
+       LEFT JOIN organizations o ON o.organization_id = u.organization_id
+       LEFT JOIN user_mfa m ON m.user_id = u.user_id
+       LEFT JOIN tenant_security_settings s ON s.tenant_id = u.tenant_id
+      WHERE u.user_id = $1`,
+    [userId]
+  );
   const user = userRes.rows[0];
   if (!user || !user.is_active || user.status !== 'ACTIVE') return null;
 
@@ -70,14 +102,24 @@ export async function loadUserContext(tx: Tx, userId: string, sessionId: string)
     organizationId: user.organization_id,
     username: user.username,
     fullName: user.full_name,
+    email: user.email,
+    organizationName: user.organization_name ?? '',
+    mustChangePassword: user.must_change_password === true,
+    mfaEnabled: user.mfa_enabled,
+    mfaEnrollmentRequired: user.require_mfa_for_admins === true && !user.mfa_enabled && isAdministrator(roles.length ? roles : ['HOST']),
     // Users without any role get the least-privileged baseline.
     role: roles[0] ?? 'HOST',
     roles: roles.slice(1),
     siteId: assignedSiteIds[0],
     assignedSiteIds,
     sessionId,
-    mfaVerified: false,
+    mfaVerified: user.mfa_enabled,
   };
+}
+
+/** True when the policy engine grants `permission` (no throw, for shaping responses). */
+export function can(user: UserContext, permission: PermissionAction): boolean {
+  return evaluateAccess(user, permission, { tenantId: user.tenantId }).allowed;
 }
 
 /** Enforces RBAC/ABAC through the shared policy engine; throws 403 with a generic message. */
@@ -86,6 +128,18 @@ export function authorize(user: UserContext, permission: PermissionAction, resou
   if (!decision.allowed) {
     throw new HttpError(403, 'FORBIDDEN', 'You do not have permission to perform this action.');
   }
+}
+
+/**
+ * True when `role` is the only one of the user's roles that grants `permission`, whichever role
+ * is primary. Used for rules that narrow what a role may do (a HOST decides only on visits they host).
+ */
+export function permissionOnlyFrom(user: UserContext, permission: PermissionAction, role: EnterpriseRole): boolean {
+  const held = [user.role, ...(user.roles ?? [])];
+  if (!held.includes(role)) return false;
+  const explicit = (user.permissions ?? []) as PermissionAction[];
+  if (hasPermissionMatch(explicit, permission)) return false;
+  return !held.some(r => r !== role && hasPermissionMatch(ROLE_PERMISSIONS[r] ?? [], permission));
 }
 
 export function canAccessSite(user: UserContext, siteId: string): boolean {

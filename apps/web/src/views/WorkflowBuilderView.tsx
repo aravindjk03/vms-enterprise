@@ -324,7 +324,7 @@ export const WorkflowBuilderView: React.FC<WorkflowBuilderViewProps> = ({
       </Card>
 
       {/* 2. Main Builder Workspace: Left Palette + Canvas + Right Inspector */}
-      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr 340px', gap: '16px', minHeight: '620px' }}>
+      <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '180px 1fr 340px', gap: '16px', minHeight: '620px' }}>
         {/* Left Palette: Addable Stage Types */}
         <div
           style={{

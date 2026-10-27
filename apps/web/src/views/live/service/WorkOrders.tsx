@@ -9,9 +9,12 @@ import {
   buttonStyle,
   can,
   ErrorNote,
+  fmt,
+  fmtDate,
   FormGrid,
   KeyValues,
   label,
+  localDateString,
   Notice,
   PagedTable,
   pill,
@@ -22,6 +25,7 @@ import {
   SERVICE_TYPES,
   Tabs,
   TextField,
+  titleWithRef,
   useMutation,
   usePagedList,
   useSites,
@@ -67,13 +71,7 @@ export const WorkOrdersView: React.FC<{ user: SessionUser; createForRequest?: st
   }
 
   const columns: ColumnDef<WorkOrderRow>[] = [
-    { key: 'referenceNumber', header: 'Reference', render: r => reference(r.referenceNumber) },
-    { key: 'title', header: 'Work order', render: r => <strong>{r.title}</strong> },
-    { key: 'providerName', header: 'Provider' },
-    { key: 'siteName', header: 'Site' },
-    { key: 'scheduledStart', header: 'Scheduled', render: r => when(r.scheduledStart) },
-    { key: 'technicians', header: 'Technicians', align: 'right' },
-    { key: 'priority', header: 'Priority', render: r => pill(r.priority) },
+    { key: 'title', header: 'Work order', wrap: true, minWidth: '220px', render: r => titleWithRef(r.title, r.referenceNumber) },
     {
       key: 'status',
       header: 'Status',
@@ -84,6 +82,11 @@ export const WorkOrdersView: React.FC<{ user: SessionUser; createForRequest?: st
         </span>
       ),
     },
+    { key: 'priority', header: 'Priority', render: r => pill(r.priority) },
+    { key: 'scheduledStart', header: 'Scheduled', render: r => when(r.scheduledStart) },
+    { key: 'providerName', header: 'Provider', wrap: true, minWidth: '120px' },
+    { key: 'siteName', header: 'Site', wrap: true, minWidth: '140px' },
+    { key: 'technicians', header: 'Technicians', align: 'right' },
   ];
 
   return (
@@ -652,12 +655,40 @@ const CompletionPanel: React.FC<{ data: WorkOrderDetailData; user: SessionUser; 
   pendingCompletion,
 }) => {
   const [evidence, setEvidence] = useState<Record<string, string>>({});
+  const [replacing, setReplacing] = useState<Record<string, boolean>>({});
   const [summary, setSummary] = useState('');
   const [remarks, setRemarks] = useState('');
   const canEvidence = can(user, 'SERVICE_EXECUTE') && ['SCHEDULED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETION_SUBMITTED'].includes(data.status);
+  // Recorded evidence can be corrected while work is open (e.g. after a reviewer returned the completion).
+  const canReplace = can(user, 'SERVICE_EXECUTE') && ['SCHEDULED', 'IN_PROGRESS', 'ON_HOLD'].includes(data.status);
+  const evidenceInput = (d: { id: string; description: string }, actionLabel: string) => (
+    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+      <input
+        aria-label={`Evidence for ${d.description}`}
+        placeholder="Evidence reference (e.g. certificate number, report ID)"
+        value={evidence[d.id] ?? ''}
+        onChange={e => setEvidence(x => ({ ...x, [d.id]: e.target.value }))}
+        style={{ flex: '1 1 220px', minWidth: 0, padding: '7px 10px', fontSize: '13px', border: `1px solid ${colors.slate[300]}`, borderRadius: radius.md }}
+      />
+      <button
+        type="button"
+        style={buttonStyle('primary')}
+        disabled={busy || (evidence[d.id] ?? '').trim().length < 3}
+        onClick={() =>
+          void post(`/deliverables/${d.id}/evidence`, { evidenceNote: evidence[d.id] }).then(saved => {
+            if (!saved) return;
+            setReplacing(x => ({ ...x, [d.id]: false }));
+            setEvidence(x => ({ ...x, [d.id]: '' }));
+          })
+        }
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
   return (
     <>
-      <Section title="Deliverables" note="Document upload arrives with the central Document service (Part 12); evidence is recorded as a reference note until then.">
+      <Section title="Deliverables" note="File upload is not available yet; record evidence as a reference (certificate number, report ID) until it is.">
         {data.deliverables.length === 0 && <p style={{ margin: 0, fontSize: '13px', color: colors.slate[500] }}>No deliverables were required.</p>}
         {data.deliverables.map(d => (
           <div key={d.id} style={{ borderBottom: `1px solid ${colors.slate[100]}`, padding: '8px 0', fontSize: '13px' }}>
@@ -667,22 +698,21 @@ const CompletionPanel: React.FC<{ data: WorkOrderDetailData; user: SessionUser; 
               {d.satisfiedAt ? pill('COMPLETE') : pill('OPEN')}
             </div>
             {d.satisfiedAt ? (
-              <div style={{ color: colors.slate[600] }}>{d.evidenceNote} — {d.satisfiedBy}, {new Date(d.satisfiedAt).toLocaleString()}</div>
-            ) : (
-              canEvidence && (
-                <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
-                  <input
-                    aria-label={`Evidence for ${d.description}`}
-                    placeholder="Evidence reference (e.g. certificate number, report ID)"
-                    value={evidence[d.id] ?? ''}
-                    onChange={e => setEvidence(x => ({ ...x, [d.id]: e.target.value }))}
-                    style={{ flex: 1, padding: '7px 10px', fontSize: '13px', border: `1px solid ${colors.slate[300]}`, borderRadius: radius.md }}
-                  />
-                  <button type="button" style={buttonStyle('primary')} disabled={busy || (evidence[d.id] ?? '').trim().length < 3} onClick={() => void post(`/deliverables/${d.id}/evidence`, { evidenceNote: evidence[d.id] })}>
-                    Attach evidence
-                  </button>
+              <>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap', color: colors.slate[600] }}>
+                  <span>
+                    {d.evidenceNote} — {d.satisfiedBy}, {fmt(d.satisfiedAt)}
+                  </span>
+                  {canReplace && !replacing[d.id] && (
+                    <button type="button" style={{ ...buttonStyle(), padding: '3px 8px', fontSize: '12px' }} onClick={() => setReplacing(x => ({ ...x, [d.id]: true }))}>
+                      Replace evidence
+                    </button>
+                  )}
                 </div>
-              )
+                {canReplace && replacing[d.id] && evidenceInput(d, 'Save replacement')}
+              </>
+            ) : (
+              canEvidence && evidenceInput(d, 'Attach evidence')
             )}
           </div>
         ))}
@@ -749,7 +779,7 @@ const TransportPanel: React.FC<{ data: WorkOrderDetailData; user: SessionUser; o
   const [result, setResult] = useState<string | null>(null);
   const empty = {
     technicianId: '',
-    activityDate: new Date(data.scheduledStart).toISOString().slice(0, 10),
+    activityDate: localDateString(new Date(data.scheduledStart)),
     modeCode: '',
     ownershipCode: '',
     vehicleTypeCode: '',
@@ -821,7 +851,7 @@ const TransportPanel: React.FC<{ data: WorkOrderDetailData; user: SessionUser; o
               {j.linkedWorkOrders > 1 && <span style={{ fontSize: '12px', color: colors.slate[600] }}>shared by {j.linkedWorkOrders} work orders</span>}
             </div>
             <div style={{ color: colors.slate[700] }}>
-              {j.activityDate?.slice(0, 10)} · {j.origin ?? '?'} → {j.destination ?? '?'} · {label(j.mode) || 'mode unknown'}
+              {fmtDate(j.activityDate)} · {j.origin ?? '?'} → {j.destination ?? '?'} · {label(j.mode) || 'mode unknown'}
               {j.fuel ? ` · ${label(j.fuel)}` : ''} · {j.distance ? `${Number(j.distance)} km (${label(j.measurementMethod)})` : 'distance unknown'} · {label(j.journeyType)}
             </div>
             {j.missingFacts && j.missingFacts.length > 0 && !j.supersededBy && <div style={{ color: colors.status.warning.fg, fontSize: '12px' }}>Missing: {j.missingFacts.join(', ')}</div>}
@@ -885,7 +915,7 @@ const TraceabilityPanel: React.FC<{ data: WorkOrderDetailData }> = ({ data }) =>
       <SelectField label="Journey" value={selected ?? ''} onChange={setSelected} required options={data.journeys.map(j => ({ value: j.id, label: `${j.referenceNumber}${j.supersededBy ? ' (superseded)' : ''}` }))} />
       <ErrorNote error={error} />
       {trace && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginTop: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '12px', marginTop: '12px' }}>
           <div style={{ border: `1px solid ${colors.slate[200]}`, borderRadius: radius.md, padding: '10px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: colors.slate[500] }}>1 · SOURCE TRANSACTIONS</div>
             {trace.sources.map(s => (

@@ -42,36 +42,36 @@ export const spacing = {
 
 export const radius = {
   none: '0px',
-  sm: '2px',
-  md: '4px',
-  lg: '6px',
-  xl: '8px',
+  sm: '4px',
+  md: '6px',
+  lg: '8px',
+  xl: '12px',
   full: '9999px',
-  // Deliberately no oversized radii (no 16px/24px consumer bubbles)
+  // Restrained radii: soft enough to feel current, square enough for dense operational screens.
 } as const;
 
 export const borders = {
   subtle: '1px solid #e2e8f0',     // Light canvas border
   strong: '1px solid #cbd5e1',     // Light strong border
   darkSubtle: '1px solid #1e293b', // Dark slate border
-  focus: '2px solid #0284c7',      // Accessible focus blue
+  focus: '2px solid #2563eb',      // Accessible focus blue
   error: '1px solid #dc2626',      // Red alert border
 } as const;
 
 export const shadows = {
   flat: 'none',
-  subtle: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-  card: '0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08)',
-  elevated: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-  modal: '0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+  subtle: '0 1px 2px 0 rgba(16, 24, 40, 0.05)',
+  card: '0 1px 2px 0 rgba(16, 24, 40, 0.06), 0 1px 3px 0 rgba(16, 24, 40, 0.04)',
+  elevated: '0 8px 16px -4px rgba(16, 24, 40, 0.10), 0 2px 6px -2px rgba(16, 24, 40, 0.06)',
+  modal: '0 24px 48px -12px rgba(16, 24, 40, 0.28)',
 } as const;
 
 export const focus = {
-  ringColor: '#0284c7',
+  ringColor: '#2563eb',
   ringWidth: '2px',
   ringOffset: '2px',
   ringStyle: 'solid',
-  boxShadow: '0 0 0 2px #ffffff, 0 0 0 4px #0284c7',
+  boxShadow: '0 0 0 2px #ffffff, 0 0 0 4px #2563eb',
 } as const;
 
 export const colors = {
@@ -91,14 +91,25 @@ export const colors = {
   },
   // Operational Primary Blue
   primary: {
-    50: '#f0f9ff',
-    100: '#e0f2fe',
-    200: '#bae6fd',
-    500: '#0ea5e9',
-    600: '#0284c7', // Primary high-vis action
-    700: '#0369a1',
-    800: '#075985',
-    900: '#0c4a6e',
+    50: '#eff5ff',
+    100: '#dbe8fe',
+    200: '#bfd6fe',
+    300: '#93b8fd',
+    400: '#6096fa',
+    500: '#3b78f6',
+    600: '#2563eb', // Primary action
+    700: '#1d4fd8',
+    800: '#1e40af',
+    900: '#1e3a8a',
+  },
+  // Brand navy for the navigation frame (sidebar, sign-in panel)
+  navy: {
+    500: '#8a9bb5', // muted text on navy
+    400: '#b4c2d6', // secondary text on navy
+    700: '#1c3050', // hover / active surface
+    800: '#12223a', // raised surface
+    900: '#0b1626', // frame background
+    950: '#07101c',
   },
   // ESG & Sustainability Emerald / Teal
   esg: {

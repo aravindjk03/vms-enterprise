@@ -1,0 +1,75 @@
+/*
+ * Tailwind utilities for the screens written with utility classes (Visitor, Customer, Kiosk and Gate
+ * views). Tailwind's global preflight is deliberately not loaded: the rest of the console is styled
+ * inline and must not change. The reset those screens expect is applied only inside `.tw` wrappers.
+ */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@source '../views';
+
+@layer base {
+  .tw *,
+  .tw ::before,
+  .tw ::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+    /* Tailwind 3 default, which this markup was written against (v4 defaults to currentColor). */
+    border-color: var(--color-gray-200, #e5e7eb);
+  }
+  .tw h1,
+  .tw h2,
+  .tw h3,
+  .tw h4,
+  .tw h5,
+  .tw h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  .tw ol,
+  .tw ul,
+  .tw menu {
+    list-style: none;
+  }
+  .tw img,
+  .tw svg,
+  .tw video,
+  .tw canvas {
+    display: block;
+    vertical-align: middle;
+  }
+  .tw img,
+  .tw video {
+    max-width: 100%;
+    height: auto;
+  }
+  .tw button,
+  .tw input,
+  .tw select,
+  .tw optgroup,
+  .tw textarea {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    background-color: transparent;
+    border-radius: 0;
+  }
+  .tw button,
+  .tw [role='button'] {
+    cursor: pointer;
+  }
+  .tw :disabled {
+    cursor: default;
+  }
+  .tw table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+  .tw ::placeholder {
+    color: var(--color-gray-400, #9ca3af);
+    opacity: 1;
+  }
+}

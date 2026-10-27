@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, RefreshCw, X } from 'lucide-react';
+import { Pagination } from '@vms/ui';
 import { colors, radius, shadows } from '@vms/ui/tokens';
 import { ApiError, apiRequest, type SessionUser } from '../../api/client.js';
 
@@ -16,12 +17,11 @@ export const card: React.CSSProperties = {
 
 export const th: React.CSSProperties = {
   textAlign: 'left',
-  fontSize: '11px',
-  fontWeight: 700,
-  letterSpacing: '0.04em',
-  textTransform: 'uppercase',
+  fontSize: '12px',
+  fontWeight: 600,
   color: colors.slate[500],
-  padding: '10px 12px',
+  padding: '10px 14px',
+  backgroundColor: colors.slate[50],
   borderBottom: `1px solid ${colors.slate[200]}`,
   whiteSpace: 'nowrap',
 };
@@ -29,7 +29,7 @@ export const th: React.CSSProperties = {
 export const td: React.CSSProperties = {
   fontSize: '13px',
   color: colors.slate[800],
-  padding: '10px 12px',
+  padding: '11px 14px',
   borderBottom: `1px solid ${colors.slate[100]}`,
   verticalAlign: 'middle',
 };
@@ -43,9 +43,11 @@ export function buttonStyle(variant: 'primary' | 'secondary' | 'danger' = 'secon
   return {
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: '6px',
-    padding: '6px 10px',
-    fontSize: '12px',
+    minHeight: '34px',
+    padding: '0 12px',
+    fontSize: '13px',
     fontWeight: 600,
     color: palette.fg,
     backgroundColor: palette.bg,
@@ -106,15 +108,25 @@ const STATUS_TONE: Record<string, keyof typeof colors.status> = {
   CRITICAL: 'danger',
 };
 
+/** 'ON_PREMISES' -> 'On premises'. */
+export const sentence = (value: string | null | undefined) => {
+  if (!value) return '—';
+  const words = value.replace(/_/g, ' ').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
 export const StatusPill: React.FC<{ status: string | null | undefined }> = ({ status }) => {
   const tone = colors.status[STATUS_TONE[status ?? ''] ?? 'neutral'];
   return (
     <span
       style={{
-        display: 'inline-block',
-        fontSize: '11px',
-        fontWeight: 700,
-        padding: '2px 8px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        fontSize: '12px',
+        fontWeight: 600,
+        lineHeight: '18px',
+        padding: '1px 9px 1px 7px',
         borderRadius: radius.full,
         color: tone.fg,
         backgroundColor: tone.bg,
@@ -122,7 +134,8 @@ export const StatusPill: React.FC<{ status: string | null | undefined }> = ({ st
         whiteSpace: 'nowrap',
       }}
     >
-      {(status ?? '—').replace(/_/g, ' ')}
+      <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.8 }} />
+      {sentence(status)}
     </span>
   );
 };
@@ -144,23 +157,6 @@ export const ErrorNote: React.FC<{ error: string | null }> = ({ error }) =>
     </div>
   ) : null;
 
-export const LiveBadge: React.FC = () => (
-  <span
-    style={{
-      fontSize: '10px',
-      fontWeight: 800,
-      letterSpacing: '0.06em',
-      color: colors.status.success.fg,
-      backgroundColor: colors.status.success.bg,
-      border: `1px solid ${colors.status.success.border}`,
-      borderRadius: radius.full,
-      padding: '2px 8px',
-    }}
-  >
-    LIVE DATA
-  </span>
-);
-
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
     const detail = err.details?.map(d => `${d.path}: ${d.message}`).join('; ');
@@ -169,20 +165,34 @@ export function describeError(err: unknown): string {
   return 'Request failed. Please try again.';
 }
 
+/** Returns `value` once it has stopped changing for `ms` (search boxes fire on every keystroke). */
+export function useDebounced<T>(value: T, ms = 300): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
+}
+
+/** Loads `path`; only the response to the latest request is applied, so slow earlier replies never win. */
 export function useApi<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const latest = useRef(0);
   const load = useCallback(async () => {
     if (!path) return;
+    const seq = ++latest.current;
     setLoading(true);
     setError(null);
     try {
-      setData(await apiRequest<T>(path));
+      const result = await apiRequest<T>(path);
+      if (seq === latest.current) setData(result);
     } catch (err) {
-      setError(describeError(err));
+      if (seq === latest.current) setError(describeError(err));
     } finally {
-      setLoading(false);
+      if (seq === latest.current) setLoading(false);
     }
   }, [path]);
   useEffect(() => {
@@ -191,76 +201,38 @@ export function useApi<T>(path: string | null) {
   return { data, error, loading, reload: load };
 }
 
-export const fmt = (value: string | null | undefined) =>
-  value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
-export const PageHeader: React.FC<{ title: string; subtitle: string; actions?: React.ReactNode }> = ({ title, subtitle, actions }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '16px' }}>
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: colors.slate[900] }}>{title}</h1>
-        <LiveBadge />
-      </div>
-      <p style={{ margin: '4px 0 0', fontSize: '13px', color: colors.slate[500] }}>{subtitle}</p>
-    </div>
-    {actions && <div style={{ display: 'flex', gap: '8px' }}>{actions}</div>}
-  </div>
-);
-
-// ---------------------------------------------------------------------------
-// Dashboard KPI strip
-// ---------------------------------------------------------------------------
-
-interface Summary {
-  visitorsOnSite: number;
-  visitorsToday: number;
-  visitorApprovalsPending: number;
-  contractorCompanies: number;
-  openWorkOrders: number;
-  customerAccounts: number;
-  upcomingCustomerVisits: number;
-  materialMovementsToday: number;
-  registeredVehicles: number;
-  gateEventsToday: number;
-}
-
-export const LiveKpiStrip: React.FC = () => {
-  const { data, error, loading, reload } = useApi<Summary>('/api/v1/dashboard/summary');
-  const tiles: Array<[string, keyof Summary]> = [
-    ['Visitors on site', 'visitorsOnSite'],
-    ['Visits scheduled today', 'visitorsToday'],
-    ['Visitor approvals pending', 'visitorApprovalsPending'],
-    ['Gate events today', 'gateEventsToday'],
-    ['Contractor companies', 'contractorCompanies'],
-    ['Open work orders', 'openWorkOrders'],
-    ['Customer accounts', 'customerAccounts'],
-    ['Registered vehicles', 'registeredVehicles'],
-  ];
-  return (
-    <section style={{ ...card, padding: '16px', marginBottom: '16px' }} aria-label="Live operational summary">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <strong style={{ fontSize: '14px', color: colors.slate[900] }}>Live operational summary</strong>
-          <LiveBadge />
-        </div>
-        <button type="button" style={buttonStyle()} onClick={() => void reload()} aria-label="Refresh summary">
-          <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} /> Refresh
-        </button>
-      </div>
-      <ErrorNote error={error} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
-        {tiles.map(([label, key]) => (
-          <div key={key} style={{ border: `1px solid ${colors.slate[100]}`, borderRadius: radius.md, padding: '12px', backgroundColor: colors.slate[50] }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: colors.slate[500], textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: colors.slate[900], marginTop: '4px', fontVariantNumeric: 'tabular-nums' }}>
-              {data ? data[key].toLocaleString() : '—'}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+/** Formats an instant in the viewer's time zone; a calendar date ('YYYY-MM-DD') is shown as that same date. */
+export const fmt = (value: string | null | undefined) => {
+  if (!value) return '—';
+  if (DATE_ONLY.test(value)) return fmtDate(value);
+  return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 };
+
+/** Formats a calendar date without converting it through UTC (which can shift it by a day). */
+export const fmtDate = (value: string | null | undefined) => {
+  if (!value) return '—';
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { dateStyle: 'medium' });
+};
+
+/** Today's date in the viewer's time zone as 'YYYY-MM-DD' (toISOString() would give the UTC date). */
+export const localDateString = (date: Date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+export const PageHeader: React.FC<{ title: string; subtitle: string; actions?: React.ReactNode; meta?: React.ReactNode }> = ({ title, subtitle, actions, meta }) => (
+  <header style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+    <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0, fontSize: '22px', lineHeight: '30px', fontWeight: 700, letterSpacing: '-0.01em', color: colors.slate[900] }}>{title}</h1>
+        {meta}
+      </div>
+      <p style={{ margin: '4px 0 0', fontSize: '14px', lineHeight: '20px', color: colors.slate[500], maxWidth: '760px' }}>{subtitle}</p>
+    </div>
+    {actions && <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{actions}</div>}
+  </header>
+);
 
 // ---------------------------------------------------------------------------
 // Visitor register (live)
@@ -287,6 +259,16 @@ interface Option {
 }
 
 const STATUS_FILTERS = ['', 'PENDING', 'APPROVED', 'ON_PREMISES', 'COMPLETED', 'REJECTED', 'CANCELLED'];
+const VISITOR_PAGE_SIZE = 50;
+
+interface GateOption {
+  gateId: string;
+  siteId: string;
+  siteName?: string;
+  name: string;
+  gateType: string;
+  isActive: boolean;
+}
 
 export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: string; openRegister?: boolean }> = ({
   user,
@@ -299,17 +281,20 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
   const [showForm, setShowForm] = useState(openRegister);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [gates, setGates] = useState<Array<{ gateId: string; siteId: string; name: string }>>([]);
+  const [gates, setGates] = useState<GateOption[]>([]);
+  const [gateId, setGateId] = useState('');
+  const [page, setPage] = useState(1);
 
   useEffect(() => setStatus(initialStatus), [initialStatus]);
   useEffect(() => setShowForm(openRegister), [openRegister]);
+  useEffect(() => setPage(1), [status, query]);
 
   const path = useMemo(() => {
-    const params = new URLSearchParams({ limit: '100' });
+    const params = new URLSearchParams({ limit: String(VISITOR_PAGE_SIZE), offset: String((page - 1) * VISITOR_PAGE_SIZE) });
     if (status) params.set('status', status);
     if (query) params.set('search', query);
     return `/api/v1/visitors?${params.toString()}`;
-  }, [status, query]);
+  }, [status, query, page]);
   const { data, error, loading, reload } = useApi<{ items: VisitorItem[]; total: number }>(path);
 
   const can = (perm: string) => user.permissions.includes(perm);
@@ -317,21 +302,46 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
 
   useEffect(() => {
     if (!canGate) return;
-    apiRequest<{ items: Array<{ gateId: string; siteId: string; name: string }> }>('/api/v1/gates')
-      .then(r => setGates(r.items))
+    Promise.all([
+      apiRequest<{ items: GateOption[] }>('/api/v1/gates'),
+      apiRequest<{ items: Array<{ siteId: string; name: string }> }>('/api/v1/sites').catch(() => ({ items: [] })),
+    ])
+      .then(([g, sites]) => {
+        const siteName = new Map(sites.items.map(site => [site.siteId, site.name]));
+        // Only active gates can record movements. The user's default site comes first, then
+        // pedestrian gates, as most visitors walk in.
+        const home = user.defaultSiteId;
+        const active = g.items
+          .filter(gate => gate.isActive)
+          .map(gate => ({ ...gate, siteName: siteName.get(gate.siteId) }))
+          .sort(
+            (a, b) =>
+              Number(b.siteId === home) - Number(a.siteId === home) ||
+              (a.siteName ?? '').localeCompare(b.siteName ?? '') ||
+              Number(b.gateType === 'PEDESTRIAN') - Number(a.gateType === 'PEDESTRIAN')
+          );
+        setGates(active);
+        setGateId(current => current || active[0]?.gateId || '');
+      })
       .catch(() => setGates([]));
-  }, [canGate]);
+  }, [canGate, user.defaultSiteId]);
 
   const act = async (visit: VisitorItem, action: 'approve' | 'reject' | 'cancel' | 'check-in' | 'check-out') => {
     setActionError(null);
     let body: Record<string, unknown> = {};
     if (action === 'check-in' || action === 'check-out') {
-      const gate = gates.find(g => g.siteId === visit.siteId);
-      if (!gate) {
-        setActionError('No active gate is configured for this site.');
+      // The operator's chosen gate when it is at the visit's site; otherwise the site's only active gate.
+      const atSite = gates.filter(g => g.siteId === visit.siteId);
+      const chosen = atSite.find(g => g.gateId === gateId) ?? (atSite.length === 1 ? atSite[0] : undefined);
+      if (!chosen) {
+        setActionError(
+          atSite.length === 0
+            ? `No active gate is configured for ${visit.siteName}.`
+            : `Choose the gate you are working at for ${visit.siteName} in "Recording at gate" above.`
+        );
         return;
       }
-      body = { gateId: gate.gateId };
+      body = { gateId: chosen.gateId };
     }
     setBusyId(visit.id);
     try {
@@ -400,6 +410,19 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
             Search
           </button>
         </form>
+        {canGate && gates.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: colors.slate[600], flex: '1 1 260px', minWidth: 0 }}>
+            <span style={{ whiteSpace: 'nowrap' }}>Recording at gate</span>
+            <select value={gateId} onChange={e => setGateId(e.target.value)} style={{ ...buttonStyle(), padding: '7px 10px', flex: 1, minWidth: 0, maxWidth: '100%' }}>
+              {gates.map(g => (
+                <option key={g.gateId} value={g.gateId}>
+                  {g.siteName ? `${g.siteName} · ` : ''}
+                  {g.name} ({g.gateType === 'PEDESTRIAN' ? 'pedestrian' : g.gateType.toLowerCase().replace(/_/g, ' ')})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <span style={{ fontSize: '12px', color: colors.slate[500] }}>{data ? `${data.total} record(s)` : ''}</span>
       </div>
 
@@ -426,8 +449,8 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
             )}
             {data && data.items.length === 0 && (
               <tr>
-                <td style={{ ...td, textAlign: 'center', color: colors.slate[500], padding: '28px' }} colSpan={8}>
-                  No visitors match this view.
+                <td style={{ ...td, textAlign: 'left', color: colors.slate[500], padding: '28px 16px' }} colSpan={8}>
+                  <span style={{ position: 'sticky', left: '16px' }}>No visitors match this view.</span>
                 </td>
               </tr>
             )}
@@ -481,6 +504,11 @@ export const LiveVisitorsView: React.FC<{ user: SessionUser; initialStatus?: str
             ))}
           </tbody>
         </table>
+        {data && data.total > VISITOR_PAGE_SIZE && (
+          <div style={{ borderTop: `1px solid ${colors.slate[100]}`, padding: '8px 12px' }}>
+            <Pagination currentPage={page} totalRecords={data.total} pageSize={VISITOR_PAGE_SIZE} onPageChange={setPage} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -495,9 +523,16 @@ export const inputStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
 };
 
-export const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+export const Field: React.FC<{ label: string; required?: boolean; children: React.ReactNode }> = ({ label, required, children }) => (
   <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontWeight: 600, color: colors.slate[700] }}>
-    {label}
+    <span>
+      {label}
+      {required && (
+        <span aria-hidden="true" style={{ color: colors.status.danger.fg, marginLeft: '3px' }}>
+          *
+        </span>
+      )}
+    </span>
     {children}
   </label>
 );
@@ -569,7 +604,7 @@ const RegisterVisitorForm: React.FC<{ user: SessionUser; onClose: () => void; on
         </button>
       </div>
       <ErrorNote error={error} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '12px' }}>
         <Field label="First name">
           <input style={inputStyle} value={form.firstName} onChange={set('firstName')} required maxLength={100} />
         </Field>
@@ -626,6 +661,8 @@ const RegisterVisitorForm: React.FC<{ user: SessionUser; onClose: () => void; on
 // Generic read-only live tables
 // ---------------------------------------------------------------------------
 
+const TABLE_PAGE_SIZE = 50;
+
 export interface LiveColumn {
   key: string;
   label: string;
@@ -638,11 +675,14 @@ export const LiveTableView: React.FC<{ title: string; subtitle: string; path: st
   path,
   columns,
 }) => {
-  const { data, error, loading, reload } = useApi<{ items: Array<Record<string, unknown>> }>(path);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [path]);
+  const pagedPath = `${path}${path.includes('?') ? '&' : '?'}limit=${TABLE_PAGE_SIZE}&offset=${(page - 1) * TABLE_PAGE_SIZE}`;
+  const { data, error, loading, reload } = useApi<{ items: Array<Record<string, unknown>>; total?: number }>(pagedPath);
   return (
     <div>
       <PageHeader
-        title={title}
+        title={data?.total !== undefined ? `${title} (${data.total})` : title}
         subtitle={subtitle}
         actions={
           <button type="button" style={buttonStyle()} onClick={() => void reload()}>
@@ -688,6 +728,11 @@ export const LiveTableView: React.FC<{ title: string; subtitle: string; path: st
             ))}
           </tbody>
         </table>
+        {data?.total !== undefined && data.total > TABLE_PAGE_SIZE && (
+          <div style={{ borderTop: `1px solid ${colors.slate[100]}`, padding: '8px 12px' }}>
+            <Pagination currentPage={page} totalRecords={data.total} pageSize={TABLE_PAGE_SIZE} onPageChange={setPage} />
+          </div>
+        )}
       </div>
     </div>
   );

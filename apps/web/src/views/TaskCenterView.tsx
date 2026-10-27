@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   CheckSquare,
   Clock,
@@ -20,11 +20,17 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { colors, radius, typography } from '@vms/ui/tokens';
-import { Button, Card, StatusBadge } from '@vms/ui';
+import { Button, Card, StatusBadge,
+  showToast,
+} from '@vms/ui';
 import type { WorkflowDomain, EnterpriseRole } from '@vms/types';
 import type { TaskItemView } from '../../../../services/workflow/src/task/task-center.service.js';
 
+export type TaskCenterTab = 'MY_PENDING' | 'ASSIGNED_TO_ME' | 'DELEGATED' | 'WAITING_OTHERS' | 'OVERDUE' | 'ESCALATED' | 'COMPLETED';
+
 export interface TaskCenterViewProps {
+  /** Tab opened by the menu item (Pending approvals, Delegated, Overdue, Completed history). */
+  initialTab?: TaskCenterTab;
   userRole?: EnterpriseRole;
   userId?: string;
   tenantId?: string;
@@ -38,7 +44,7 @@ const INITIAL_TASKS: TaskItemView[] = [
     sourceDomain: 'VISITOR',
     sourceTransactionId: 'VIS-9401',
     siteId: 'site-chennai-01',
-    requesterName: 'Dr. Evelyn Reed (Siemens Healthineers)',
+    requesterName: 'Dr. Evelyn Reed (Sievert Healthineers)',
     stageName: 'Designated Host Approval',
     assignedApprover: 'Vikram Mehta (Plant Operations Lead)',
     submittedAt: new Date(Date.now() - 35 * 60 * 1000), // 35 min ago
@@ -60,7 +66,7 @@ const INITIAL_TASKS: TaskItemView[] = [
     sourceDomain: 'CONTRACTOR',
     sourceTransactionId: 'CONT-8812',
     siteId: 'site-chennai-01',
-    requesterName: 'Larsen & Toubro Heavy Civil',
+    requesterName: 'Larkin & Toller Heavy Civil',
     stageName: 'EHS Safety Officer Sign-Off',
     assignedApprover: 'EHS_MANAGER',
     submittedAt: new Date(Date.now() - 110 * 60 * 1000), // 110 min ago
@@ -81,7 +87,7 @@ const INITIAL_TASKS: TaskItemView[] = [
     sourceDomain: 'MATERIAL',
     sourceTransactionId: 'MAT-7731',
     siteId: 'site-chennai-01',
-    requesterName: 'Tata Steel Logistics',
+    requesterName: 'Taravel Steel Logistics',
     stageName: 'Material Store Manager Clearance',
     assignedApprover: 'Storekeeper / Org Admin',
     submittedAt: new Date(Date.now() - 45 * 60 * 1000),
@@ -90,7 +96,7 @@ const INITIAL_TASKS: TaskItemView[] = [
     status: 'PENDING',
     availableActions: ['APPROVE', 'REJECT', 'CHANGES_REQUESTED', 'DELEGATE'],
     sanitizedDetails: {
-      challanNumber: 'DC-99201-TATA',
+      challanNumber: 'DC-99201-TARAVEL',
       movement: 'INWARD',
       classification: 'RETURNABLE_CONTAINERS',
       grossWeightKg: 18500,
@@ -102,7 +108,7 @@ const INITIAL_TASKS: TaskItemView[] = [
     sourceDomain: 'CUSTOMER',
     sourceTransactionId: 'CUST-3310',
     siteId: 'site-pune-01',
-    requesterName: 'Daimler Truck Global Delegation',
+    requesterName: 'Dalmont Truck Global Delegation',
     stageName: 'Plant Director / Security Clearance',
     assignedApprover: 'SITE_ADMIN',
     submittedAt: new Date(Date.now() - 15 * 60 * 1000),
@@ -111,7 +117,7 @@ const INITIAL_TASKS: TaskItemView[] = [
     status: 'PENDING',
     availableActions: ['APPROVE', 'REJECT', 'CHANGES_REQUESTED', 'DELEGATE'],
     sanitizedDetails: {
-      account: 'Daimler India Commercial Vehicles',
+      account: 'Dalmont India Commercial Vehicles',
       delegationSize: 5,
       ndaSigned: true,
       visitWindow: '2026-10-15 to 2026-10-16',
@@ -123,7 +129,7 @@ const INITIAL_TASKS: TaskItemView[] = [
     sourceDomain: 'SERVICE',
     sourceTransactionId: 'SRV-5521',
     siteId: 'site-chennai-01',
-    requesterName: 'Atlas Copco Air Power',
+    requesterName: 'Atlantic Compressors Air Power',
     stageName: 'Maintenance Lead & Site Manager Approval',
     assignedApprover: 'Delegated to Proxy (EHS Manager)',
     submittedAt: new Date(Date.now() - 60 * 60 * 1000),
@@ -141,13 +147,13 @@ const INITIAL_TASKS: TaskItemView[] = [
 ];
 
 export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
+  initialTab = 'MY_PENDING',
   userRole = 'SUPER_ADMIN',
   userId = 'user-01',
 }) => {
-  // Navigation tab state
-  const [activeTab, setActiveTab] = useState<
-    'MY_PENDING' | 'ASSIGNED_TO_ME' | 'DELEGATED' | 'WAITING_OTHERS' | 'OVERDUE' | 'ESCALATED' | 'COMPLETED'
-  >('MY_PENDING');
+  // Navigation tab state (follows the menu item that opened the view)
+  const [activeTab, setActiveTab] = useState<TaskCenterTab>(initialTab);
+  useEffect(() => setActiveTab(initialTab), [initialTab]);
 
   const [domainFilter, setDomainFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -212,7 +218,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
     const { task, action } = activeActionModal;
 
     if (action === 'REJECT' && !remarksInput.trim()) {
-      alert('Mandatory Rejection Rule: Rejection remarks must be provided.');
+      showToast('Rejection remarks are required.', 'warning');
       return;
     }
 
@@ -271,7 +277,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
       </div>
 
       {/* 2. Persona Navigation Tabs */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${colors.slate[200]}`, gap: '4px', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${colors.slate[200]}`, gap: '4px', overflowX: 'auto', maxWidth: '100%', minWidth: 0 }}>
         {[
           { id: 'MY_PENDING', label: 'Pending Approvals', count: counts.pending, icon: <Clock size={14} /> },
           { id: 'DELEGATED', label: 'Delegated Tasks', count: counts.delegated, icon: <UserCheck size={14} /> },
@@ -426,7 +432,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     {/* SLA Badge */}
                     <span
                       style={{
@@ -454,7 +460,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
                 </div>
 
                 {/* Task Body: Requester, Assigned Approver, Submitted details */}
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: '12px', fontSize: typography.fontSize.xs.size, color: colors.slate[600] }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '12px', fontSize: typography.fontSize.xs.size, color: colors.slate[600] }}>
                   <div>
                     <span style={{ color: colors.slate[500], display: 'block' }}>Subject / Requester:</span>
                     <strong style={{ color: colors.slate[800] }}>{task.requesterName}</strong>
@@ -479,7 +485,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
                 </div>
 
                 {/* Action Buttons Footer */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${colors.slate[100]}`, paddingTop: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderTop: `1px solid ${colors.slate[100]}`, paddingTop: '10px' }}>
                   <button
                     type="button"
                     onClick={() => setSelectedTaskDetail(task)}
@@ -499,7 +505,7 @@ export const TaskCenterView: React.FC<TaskCenterViewProps> = ({
                   </button>
 
                   {!isResolved ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <Button
                         variant="ghost"
                         size="dense"

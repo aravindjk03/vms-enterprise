@@ -15,7 +15,7 @@ $$\text{Source Transaction} \longleftrightarrow \text{Transport Activity} \longl
 ```mermaid
 graph LR
     subgraph Node1 [1. Source Transaction]
-        TX[Visitor Transaction<br/><b>VIS-2026-000182</b><br/>Aravind Swaminathan<br/>Siemens Industrial Automation<br/>Host: Vikram Mehta<br/>Site: Chennai Plant]
+        TX[Visitor Transaction<br/><b>VIS-2026-000182</b><br/>Aravind Swaminathan<br/>Sievert Industrial Automation<br/>Host: Vikram Mehta<br/>Site: Chennai Plant]
     end
 
     subgraph Node2 [2. Transport Activity]

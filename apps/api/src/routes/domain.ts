@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import type { PermissionAction } from '@vms/permissions';
 import { z } from 'zod';
 import type { RouteContext } from '../app.js';
 import { writeAudit } from '../audit.js';
-import { authorize, canAccessSite, type AuthenticatedUser } from '../context.js';
+import { authorize, can, canAccessSite, permissionOnlyFrom, type AuthenticatedUser } from '../context.js';
 import { isUuid, type Tx } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 
@@ -70,6 +71,19 @@ async function lockVisitor(tx: Tx, user: AuthenticatedUser, id: string): Promise
   return visit;
 }
 
+/**
+ * Paged list response. The window count comes with the rows; a page past the end has no rows, so the
+ * total is then counted separately (the client needs it to step back).
+ */
+async function withTotal(
+  rows: Array<Record<string, unknown>>,
+  q: { limit: number; offset: number },
+  countAll: () => Promise<{ rows: Array<{ n: number }> }>
+) {
+  const total = rows.length ? Number(rows[0]['total']) : q.offset > 0 ? (await countAll()).rows[0].n : 0;
+  return { items: rows.map(({ total: _t, ...r }) => r), total, limit: q.limit, offset: q.offset };
+}
+
 export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteContext): Promise<void> {
   // ---------------------------------------------------------------------------
   // Reference data
@@ -130,6 +144,7 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
            (SELECT count(*) FROM visitor_transactions WHERE status = 'PENDING' AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "visitorApprovalsPending",
            (SELECT count(*) FROM contractor_companies WHERE status = 'ACTIVE')::int AS "contractorCompanies",
            (SELECT count(*) FROM contractor_work_orders WHERE status NOT IN ('CLOSED','CANCELLED','COMPLETED') AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "openWorkOrders",
+           (SELECT count(*) FROM service_work_orders WHERE status NOT IN ('CLOSED','CANCELLED','REJECTED','COMPLETED') AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "openServiceWorkOrders",
            (SELECT count(*) FROM customer_accounts WHERE status = 'ACTIVE')::int AS "customerAccounts",
            (SELECT count(*) FROM customer_visit_transactions WHERE scheduled_start >= now() AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "upcomingCustomerVisits",
            (SELECT count(*) FROM material_transactions WHERE created_at::date = current_date AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "materialMovementsToday",
@@ -137,7 +152,23 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
            (SELECT count(*) FROM gate_events WHERE event_timestamp::date = current_date AND ($1::uuid[] IS NULL OR site_id = ANY($1)))::int AS "gateEventsToday"`,
         [scope]
       );
-      return rows[0];
+      // Each count is returned only to roles that may read the records behind it (null otherwise),
+      // so the dashboard never reveals totals a role could not list itself.
+      const summary = rows[0] as Record<string, number>;
+      const needs: Record<string, PermissionAction> = {
+        visitorsOnSite: 'VISITOR_READ',
+        visitorsToday: 'VISITOR_READ',
+        visitorApprovalsPending: 'VISITOR_READ',
+        contractorCompanies: 'CONTRACTOR_READ',
+        openWorkOrders: 'CONTRACTOR_READ',
+        openServiceWorkOrders: 'SERVICE_READ',
+        customerAccounts: 'CUSTOMER_READ',
+        upcomingCustomerVisits: 'CUSTOMER_READ',
+        materialMovementsToday: 'MATERIAL_READ',
+        registeredVehicles: 'VEHICLE_READ',
+        gateEventsToday: 'GATE_VIEW',
+      };
+      return Object.fromEntries(Object.entries(summary).map(([k, v]) => [k, needs[k] && !can(user, needs[k]) ? null : v]));
     })
   );
 
@@ -250,8 +281,9 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
         ownerId: opts.segregateFromCreator ? visit.created_by : undefined,
         currentState: visit.status,
       });
-      // Employees whose only role is HOST may decide on visits they host, nothing else.
-      if (opts.segregateFromCreator && user.role === 'HOST' && visit.host_user_id !== user.userId) {
+      // A user whose decision right comes only from the HOST role may decide on visits they host,
+      // nothing else, even when another role (e.g. receptionist) is their primary role.
+      if (opts.segregateFromCreator && permissionOnlyFrom(user, opts.permission, 'HOST') && visit.host_user_id !== user.userId) {
         throw new HttpError(403, 'FORBIDDEN', 'Only the visit host or site management can decide on this visit.');
       }
       if (!opts.from.includes(visit.status)) {
@@ -364,12 +396,13 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
         `SELECT c.company_id AS "id", c.vendor_code AS "vendorCode", coalesce(c.trade_name, o.trade_name, o.legal_name) AS "name",
                 c.contractor_classification AS "classification", c.safety_rating AS "safetyRating", c.status,
                 c.insurance_expiry_date AS "insuranceExpiry",
-                (SELECT count(*) FROM contractor_work_orders w WHERE w.company_id = c.company_id)::int AS "workOrders"
+                (SELECT count(*) FROM contractor_work_orders w WHERE w.company_id = c.company_id)::int AS "workOrders",
+                count(*) OVER()::int AS "total"
            FROM contractor_companies c JOIN external_organizations o ON o.org_id = c.external_org_id
           ORDER BY 3 LIMIT $1 OFFSET $2`,
         [q.limit, q.offset]
       );
-      return { items: rows };
+      return withTotal(rows, q, () => tx.query('SELECT count(*)::int AS n FROM contractor_companies'));
     })
   );
 
@@ -379,11 +412,11 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
       const q = Paging.parse(request.query);
       const { rows } = await tx.query(
         `SELECT customer_account_id AS "id", account_code AS "accountCode", account_name AS "name", tier,
-                classification, status, default_nda_required AS "ndaRequired"
+                classification, status, default_nda_required AS "ndaRequired", count(*) OVER()::int AS "total"
            FROM customer_accounts ORDER BY account_name LIMIT $1 OFFSET $2`,
         [q.limit, q.offset]
       );
-      return { items: rows };
+      return withTotal(rows, q, () => tx.query('SELECT count(*)::int AS n FROM customer_accounts'));
     })
   );
 
@@ -393,15 +426,31 @@ export async function registerDomainRoutes(app: FastifyInstance, ctx: RouteConte
   app.get('/api/v1/audit-logs', async request =>
     ctx.asUser(request, async (tx, user) => {
       authorize(user, 'AUDIT_LOG_READ');
-      const q = Paging.extend({ entityId: z.string().max(64).optional() }).parse(request.query);
+      const q = Paging.extend({
+        entityId: z.string().max(64).optional(),
+        entityType: z.string().trim().max(64).optional(),
+        action: z.string().trim().max(64).optional(),
+        search: z.string().trim().max(100).optional(),
+        from: z.string().datetime({ offset: true }).optional(),
+      }).parse(request.query);
+      const where = `($1::text IS NULL OR a.entity_id = $1)
+            AND ($5::timestamptz IS NULL OR a."timestamp" >= $5)
+            AND ($2::text IS NULL OR a.entity_type = $2)
+            AND ($3::text IS NULL OR a.action = $3)
+            AND ($4::text IS NULL OR a.entity_id ILIKE '%' || $4 || '%' OR u.full_name ILIKE '%' || $4 || '%' OR u.username::text ILIKE '%' || $4 || '%')`;
+      const params = [q.entityId ?? null, q.entityType ?? null, q.action ?? null, q.search?.replace(/[%_\\]/g, m => `\\${m}`) ?? null, q.from ?? null];
       const { rows } = await tx.query(
-        `SELECT audit_id AS "id", "timestamp", actor_id AS "actorId", actor_role AS "actorRole", action,
-                entity_type AS "entityType", entity_id AS "entityId", request_id AS "requestId", reason
-           FROM audit_logs WHERE ($1::text IS NULL OR entity_id = $1)
-          ORDER BY "timestamp" DESC LIMIT $2 OFFSET $3`,
-        [q.entityId ?? null, q.limit, q.offset]
+        `SELECT a.audit_id AS "id", a."timestamp", a.actor_id AS "actorId", u.full_name AS "actorName", a.actor_role AS "actorRole",
+                a.action, a.entity_type AS "entityType", a.entity_id AS "entityId", a.request_id AS "requestId", a.reason,
+                count(*) OVER()::int AS "total"
+           FROM audit_logs a LEFT JOIN users u ON u.user_id::text = a.actor_id
+          WHERE ${where}
+          ORDER BY a."timestamp" DESC LIMIT $6 OFFSET $7`,
+        [...params, q.limit, q.offset]
       );
-      return { items: rows };
+      return withTotal(rows, q, () =>
+        tx.query(`SELECT count(*)::int AS n FROM audit_logs a LEFT JOIN users u ON u.user_id::text = a.actor_id WHERE ${where}`, params)
+      );
     })
   );
 }

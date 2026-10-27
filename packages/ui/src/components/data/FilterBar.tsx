@@ -55,7 +55,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       className="vms-filter-bar"
     >
       {/* Left side: Search & primary filters */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 'min(280px, 100%)' }}>
         {/* Search input */}
         <div
           style={{
@@ -186,7 +186,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {/* Right side: Density toggle, column manager, export */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
         {onDensityToggle && (
           <Button
             variant="outline"

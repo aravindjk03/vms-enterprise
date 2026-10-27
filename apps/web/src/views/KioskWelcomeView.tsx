@@ -73,7 +73,7 @@ export const KioskWelcomeView: React.FC<{ onExitKiosk?: () => void }> = ({ onExi
           <ShieldCheck size={24} color={colors.primary[600]} />
           <div>
             <strong style={{ fontSize: typography.fontSize.md.size, color: colors.slate[900] }}>
-              MRF Tyres & Polymers
+              Northwind Tyres & Polymers
             </strong>
             <div style={{ fontSize: '11px', color: colors.slate[500] }}>
               Chennai Plant Welcome Terminal
@@ -297,7 +297,7 @@ export const KioskWelcomeView: React.FC<{ onExitKiosk?: () => void }> = ({ onExi
           />
           <Input
             label="Company / Organization"
-            placeholder="e.g. Tata Consultancy Services"
+            placeholder="e.g. Taravel Consulting Services"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
           />

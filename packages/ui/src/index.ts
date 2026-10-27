@@ -19,6 +19,7 @@ export * from './components/foundation/FileUploader.js';
 export * from './components/status/StatusBadge.js';
 export * from './components/status/Alert.js';
 export * from './components/status/Banner.js';
+export * from './components/status/Toast.js';
 export * from './components/status/Progress.js';
 export * from './components/status/ExpiryIndicator.js';
 export * from './components/status/ApprovalStatusBadge.js';

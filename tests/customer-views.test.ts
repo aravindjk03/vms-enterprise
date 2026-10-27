@@ -11,7 +11,7 @@ test('Part 7: Customer Management View & SSR Rendering Verification', async (t) 
   await t.test('1. renders CustomerManagementView Executive Dashboard with KPIs and Scope 3 Footprint', () => {
     const html = renderToString(React.createElement(CustomerManagementView, { initialSubView: 'DASHBOARD' }));
     assert.ok(html.includes('Customer Management &amp; Delegations') || html.includes('Customer Management & Delegations'));
-    assert.ok(html.includes('Part 7 Independent Domain'));
+    assert.ok(!html.includes('Part 7'), 'internal build references are not shown to users');
     assert.ok(html.includes('Active OEM Accounts'));
     assert.ok(html.includes('Planned Visits'));
     assert.ok(html.includes('Currently Inside'));
@@ -24,8 +24,8 @@ test('Part 7: Customer Management View & SSR Rendering Verification', async (t) 
     const html = renderToString(React.createElement(CustomerManagementView, { initialSubView: 'ACCOUNTS' }));
     assert.ok(html.includes('Enterprise Customer Accounts'));
     assert.ok(html.includes('CUS-ACC-TSLA'));
-    assert.ok(html.includes('Tesla Motors Global Powertrain Inc.'));
-    assert.ok(html.includes('Toyota Motor Manufacturing Asia'));
+    assert.ok(html.includes('Voltaris Motors Global Powertrain Inc.'));
+    assert.ok(html.includes('Kintaro Motor Manufacturing Asia'));
     assert.ok(html.includes('GLOBAL_ENTERPRISE'));
     assert.ok(html.includes('Bilateral NDA'));
   });
@@ -92,13 +92,13 @@ test('Part 7: Customer Management View & SSR Rendering Verification', async (t) 
     const html = renderToString(React.createElement(CustomerManagementView, { initialSubView: 'HISTORY' }));
     assert.ok(html.includes('Customer Domain Audit &amp; Historical Lifecycle Ledger') || html.includes('Customer Domain Audit & Historical Lifecycle Ledger'));
     assert.ok(html.includes('Partial Delegation Arrival Check-in'));
-    assert.ok(html.includes('Tesla IATF Audit Team Checked In'));
+    assert.ok(html.includes('Voltaris IATF Audit Team Checked In'));
   });
 
   await t.test('10. App component routes /customers to CustomerManagementView', () => {
     const html = renderToString(React.createElement(App, { initialRoute: '/customers' }));
     assert.ok(html.includes('Customer Management &amp; Delegations') || html.includes('Customer Management & Delegations'));
-    assert.ok(html.includes('Part 7 Independent Domain'));
+    assert.ok(!html.includes('Part 7'), 'internal build references are not shown to users');
   });
 
   await t.test('11. App component routes /customers/audits and subroutes to CustomerManagementView', () => {

@@ -11,6 +11,7 @@ import { pendingMigrations, withTenant, type Db, type Tx } from './db.js';
 import { loadUserContext, type AuthenticatedUser } from './context.js';
 import { HttpError } from './errors.js';
 import { verifyAccessToken, type AccessTokenClaims } from './security/tokens.js';
+import { registerAdminRoutes } from './routes/admin.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerDomainRoutes } from './routes/domain.js';
 import { registerServiceRoutes } from './routes/service/index.js';
@@ -63,7 +64,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const rateLimiter = new RateLimiter({
     DEFAULT: { limit: 600, windowMs: 60_000 },
     LOGIN: { limit: config.loginRateLimitPerMinute, windowMs: 60_000 },
+    LOGIN_IP: { limit: config.loginRateLimitPerIpPerMinute ?? 100, windowMs: 60_000 },
   });
+  // Behind a reverse proxy without TRUST_PROXY every client appears as the proxy's address.
+  let proxyWarningLogged = false;
   const pruneTimer = setInterval(() => rateLimiter.prune(), 60_000);
   pruneTimer.unref();
   app.addHook('onClose', async () => clearInterval(pruneTimer));
@@ -92,7 +96,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       }
     }
 
-    if (isApi && !rateLimiter.checkRateLimit(request.ip, 'DEFAULT').allowed) {
+    if (!config.trustProxy && !proxyWarningLogged && request.headers['x-forwarded-for']) {
+      proxyWarningLogged = true;
+      request.log.warn('Requests carry X-Forwarded-For but TRUST_PROXY is off: client addresses (rate limits, audit) will be the proxy. Set TRUST_PROXY=true behind a trusted proxy.');
+    }
+    // Signed-in traffic is limited per user, so users behind one proxy or NAT address do not share a budget.
+    const bearer = request.headers.authorization?.startsWith('Bearer ') ? request.headers.authorization.slice(7) : undefined;
+    const caller = bearer ? verifyAccessToken(bearer, config.jwtSecret) : null;
+    const limitKey = caller ? `user:${caller.sub}` : `ip:${request.ip}`;
+    if (isApi && !rateLimiter.checkRateLimit(limitKey, 'DEFAULT').allowed) {
       return reply.code(429).send({ error: { code: 'RATE_LIMITED', message: 'Too many requests.', requestId: request.id } });
     }
   });
@@ -145,6 +157,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       if (!user) {
         throw new HttpError(401, 'UNAUTHENTICATED', 'Authentication required.');
       }
+      // A temporary password grants nothing except setting a new one (and signing out).
+      if (user.mustChangePassword && !request.url.startsWith('/api/v1/auth/')) {
+        throw new HttpError(403, 'PASSWORD_CHANGE_REQUIRED', 'Set a new password to continue.');
+      }
+      // The organization requires two-step verification for administrators: set it up first.
+      if (user.mfaEnrollmentRequired && !request.url.startsWith('/api/v1/auth/')) {
+        throw new HttpError(403, 'MFA_ENROLLMENT_REQUIRED', 'Your organization requires two-step verification. Set it up to continue.');
+      }
       return fn(tx, user);
     });
   };
@@ -168,6 +188,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   await registerAuthRoutes(app, ctx);
+  await registerAdminRoutes(app, ctx);
   await registerDomainRoutes(app, ctx);
   await registerServiceRoutes(app, ctx);
 

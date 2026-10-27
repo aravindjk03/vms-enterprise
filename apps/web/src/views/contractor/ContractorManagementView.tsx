@@ -64,6 +64,7 @@ import {
   Drawer,
   Timeline,
   type ColumnDef,
+  showToast,
 } from '@vms/ui';
 const fs = {
   micro: typography.fontSize.micro.size,
@@ -148,7 +149,7 @@ const INITIAL_COMPANIES = [
     status: 'ACTIVE' as ContractorCompanyStatus,
     primaryContactName: 'Rajesh Sharma',
     primaryContactPhone: '+91 98765 43210',
-    primaryContactEmail: 'rajesh.sharma@apexinfra.com',
+    primaryContactEmail: 'rajesh.sharma@apexinfra.example',
     siteContactName: 'Suresh Patil',
     activeContractsCount: 3,
     activeWorkOrdersCount: 5,
@@ -167,13 +168,13 @@ const INITIAL_COMPANIES = [
     status: 'ACTIVE' as ContractorCompanyStatus,
     primaryContactName: 'Anita Roy',
     primaryContactPhone: '+91 98220 11223',
-    primaryContactEmail: 'anita.roy@volttech.in',
+    primaryContactEmail: 'anita.roy@volttech.example',
     siteContactName: 'Kunal Verma',
     activeContractsCount: 1,
     activeWorkOrdersCount: 2,
     assignedWorkersCount: 18,
     compliancePassRate: 94.5,
-    insurancePolicyNumber: 'POL-BAJAJ-2026-4433',
+    insurancePolicyNumber: 'POL-BALRAJ-2026-4433',
     insuranceExpiryDate: '2026-10-15',
   },
   {
@@ -186,7 +187,7 @@ const INITIAL_COMPANIES = [
     status: 'ACTIVE' as ContractorCompanyStatus,
     primaryContactName: 'Dharmesh Gupta',
     primaryContactPhone: '+91 97110 55667',
-    primaryContactEmail: 'd.gupta@solidground.co',
+    primaryContactEmail: 'd.gupta@solidground.example',
     siteContactName: 'Mahesh Nair',
     activeContractsCount: 2,
     activeWorkOrdersCount: 3,
@@ -737,7 +738,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
       status: 'ACTIVE' as ContractorCompanyStatus,
       primaryContactName: newCompanyForm.primaryContactName || 'Authorized Rep',
       primaryContactPhone: newCompanyForm.primaryContactPhone || '+91 90000 00000',
-      primaryContactEmail: newCompanyForm.primaryContactEmail || 'admin@contractor.com',
+      primaryContactEmail: newCompanyForm.primaryContactEmail || 'admin@contractor.example',
       siteContactName: 'Site Supervisor',
       activeContractsCount: 0,
       activeWorkOrdersCount: 0,
@@ -826,7 +827,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
     if (!w || !wo) return;
 
     if (!w.medicalFitnessValid || w.status === 'RESTRICTED') {
-      alert(`GATE ACCESS DENIED: Worker ${w.fullName} is currently RESTRICTED or has lapsed medical fitness.`);
+      showToast(`Gate access denied: ${w.fullName} is restricted or has lapsed medical fitness.`, 'danger');
       return;
     }
 
@@ -970,33 +971,46 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
         }}
       >
         {[
-          { key: 'DASHBOARD', label: '1. Dashboard', icon: <BarChart3 size={15} /> },
-          { key: 'COMPANIES', label: '2. Companies', icon: <Building2 size={15} /> },
-          { key: 'CONTRACTS', label: '3. Contracts', icon: <FileSignature size={15} /> },
-          { key: 'WORK_ORDERS', label: '4. Work Orders', icon: <Briefcase size={15} /> },
-          { key: 'WORKER_DIRECTORY', label: '5. Worker Directory', icon: <Users size={15} /> },
-          { key: 'RETURNING_WORKERS', label: '6. Returning Workers', icon: <UserCheck size={15} /> },
-          { key: 'ASSIGNMENTS', label: '7. Assignments', icon: <Layers size={15} /> },
-          { key: 'COMPLIANCE', label: '8. Compliance', icon: <ShieldCheck size={15} /> },
-          { key: 'DOCUMENT_VERIFICATION', label: '9. Documents', icon: <FileCheck size={15} /> },
-          { key: 'TRAINING_RECORDS', label: '10. Training', icon: <GraduationCap size={15} /> },
-          { key: 'SAFETY_INDUCTION', label: '11. Inductions', icon: <Shield size={15} /> },
-          { key: 'QUALIFICATIONS', label: '12. Qualifications', icon: <Award size={15} /> },
-          { key: 'FITNESS_MEDICAL', label: '13. Medical Fitness', icon: <HeartPulse size={15} /> },
-          { key: 'PERMITS', label: '14. Permits', icon: <Flame size={15} /> },
-          { key: 'CURRENTLY_ON_SITE', label: '15. Currently On Site', icon: <Activity size={15} /> },
-          { key: 'DAILY_ATTENDANCE', label: '16. Attendance Ledger', icon: <Clock size={15} /> },
-          { key: 'EXPECTED_WORKFORCE', label: '17. Expected Workforce', icon: <Calendar size={15} /> },
-          { key: 'EXPIRING_DOCUMENTS', label: '18. Expiring Alerts', icon: <AlertTriangle size={15} /> },
-          { key: 'RESTRICTED_WORKERS', label: '19. Restricted Workers', icon: <BadgeAlert size={15} /> },
-          { key: 'CONTRACTOR_TRANSPORT', label: '20. Transport & Mobility', icon: <Bus size={15} /> },
-          { key: 'ESG_TRACEABILITY', label: '21. ESG Traceability', icon: <Leaf size={15} /> },
-          { key: 'REPORTS', label: '22. Analytics & Reports', icon: <BarChart3 size={15} /> },
+          { key: 'DASHBOARD', label: 'Dashboard', icon: <BarChart3 size={15} /> },
+          { key: 'COMPANIES', label: 'Companies', icon: <Building2 size={15} /> },
+          { key: 'CONTRACTS', label: 'Contracts', icon: <FileSignature size={15} /> },
+          { key: 'WORK_ORDERS', label: 'Work Orders', icon: <Briefcase size={15} /> },
+          { key: 'WORKER_DIRECTORY', label: 'Worker Directory', icon: <Users size={15} /> },
+          { key: 'RETURNING_WORKERS', label: 'Returning Workers', icon: <UserCheck size={15} /> },
+          { key: 'ASSIGNMENTS', label: 'Assignments', icon: <Layers size={15} /> },
+          { key: 'COMPLIANCE', label: 'Compliance', icon: <ShieldCheck size={15} /> },
+          { key: 'DOCUMENT_VERIFICATION', label: 'Documents', icon: <FileCheck size={15} /> },
+          { key: 'TRAINING_RECORDS', label: 'Training', icon: <GraduationCap size={15} /> },
+          { key: 'SAFETY_INDUCTION', label: 'Inductions', icon: <Shield size={15} /> },
+          { key: 'QUALIFICATIONS', label: 'Qualifications', icon: <Award size={15} /> },
+          { key: 'FITNESS_MEDICAL', label: 'Medical Fitness', icon: <HeartPulse size={15} /> },
+          { key: 'PERMITS', label: 'Permits', icon: <Flame size={15} /> },
+          { key: 'CURRENTLY_ON_SITE', label: 'Currently On Site', icon: <Activity size={15} /> },
+          { key: 'DAILY_ATTENDANCE', label: 'Attendance Ledger', icon: <Clock size={15} /> },
+          { key: 'EXPECTED_WORKFORCE', label: 'Expected Workforce', icon: <Calendar size={15} /> },
+          { key: 'EXPIRING_DOCUMENTS', label: 'Expiring Alerts', icon: <AlertTriangle size={15} /> },
+          { key: 'RESTRICTED_WORKERS', label: 'Restricted Workers', icon: <BadgeAlert size={15} /> },
+          { key: 'CONTRACTOR_TRANSPORT', label: 'Transport & Mobility', icon: <Bus size={15} /> },
+          { key: 'ESG_TRACEABILITY', label: 'ESG Traceability', icon: <Leaf size={15} /> },
+          { key: 'REPORTS', label: 'Analytics & Reports', icon: <BarChart3 size={15} /> },
         ].map((tab) => {
           const isActive = activeSubView === tab.key;
           return (
             <button
               key={tab.key}
+              type="button"
+              aria-current={isActive ? 'page' : undefined}
+              ref={
+                isActive
+                  ? (el) => {
+                      // Keep the active pill visible by scrolling the strip sideways only (never the page).
+                      const strip = el?.parentElement;
+                      if (!el || !strip) return;
+                      const left = el.offsetLeft - strip.offsetLeft;
+                      if (left < strip.scrollLeft || left + el.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = Math.max(0, left - 16);
+                    }
+                  : undefined
+              }
               onClick={() => handleNavigate(tab.key as ContractorSubView)}
               style={{
                 display: 'flex',
@@ -1011,6 +1025,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
                 border: `1px solid ${isActive ? colors.primary[600] : colors.slate[200]}`,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
                 transition: 'all 0.15s ease',
               }}
             >
@@ -1022,7 +1037,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
       </div>
 
       {/* 3. Executive KPI Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 1fr))', gap: '16px' }}>
         <Card style={{ padding: '16px', borderLeft: `4px solid ${colors.primary[500]}` }}>
           <div style={{ fontSize: fs.xs, color: colors.slate[500], fontWeight: typography.fontWeight.medium }}>
             Active Companies
@@ -1093,7 +1108,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
             type="system"
           />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(400px, 100%), 1fr))', gap: '20px' }}>
             <Card style={{ padding: '20px' }}>
               <h3 style={{ fontSize: fs.md, fontWeight: typography.fontWeight.bold, margin: '0 0 12px 0' }}>
                 Active Contractor Work Orders
@@ -1643,10 +1658,10 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
                 header: 'Action',
                 render: (r) => (
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <Button size="dense" variant="primary" onClick={() => alert(`Approved ${r.workOrderNumber}`)}>
+                    <Button size="dense" variant="primary" onClick={() => showToast(`Approved ${r.workOrderNumber}.`)}>
                       Approve
                     </Button>
-                    <Button size="dense" variant="secondary" onClick={() => alert(`Changes requested for ${r.workOrderNumber}`)}>
+                    <Button size="dense" variant="secondary" onClick={() => showToast(`Changes requested for ${r.workOrderNumber}.`, 'info')}>
                       Review
                     </Button>
                   </div>
@@ -1747,7 +1762,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Vendor Code (Optional)</label>
               <Input
@@ -1771,7 +1786,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Primary Contact Person</label>
               <Input
@@ -1789,7 +1804,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Insurance Policy Number</label>
               <Input
@@ -1840,7 +1855,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Start Date</label>
               <Input
@@ -1899,7 +1914,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Work Location</label>
               <Input
@@ -1961,7 +1976,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Trade Skill</label>
               <Input
@@ -2028,7 +2043,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               options={workOrders.map((wo) => ({ value: wo.workOrderId, label: `${wo.workOrderNumber}: ${wo.title}` }))}
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Entry Turnstile / Gate</label>
               <Select
@@ -2055,7 +2070,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Distance (km)</label>
               <Input
@@ -2102,7 +2117,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
               type="system"
             />
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="vms-stack-narrow" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: fs.xs, fontWeight: typography.fontWeight.medium }}>Corrected Entry Time</label>
               <Input
@@ -2170,7 +2185,7 @@ export const ContractorManagementView: React.FC<ContractorManagementViewProps> =
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px 0' }}>
             <Banner
               title="Canonical Domain Record"
-              message={`Isolated entity strictly governed by Part 8 Contractor Domain. Tenant isolation verified for ${siteId}.`}
+              message={`Contractor records are isolated per tenant and shown for site ${siteId}.`}
               type="system"
             />
             <pre

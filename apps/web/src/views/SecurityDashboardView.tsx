@@ -11,7 +11,9 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import { colors, radius, typography } from '@vms/ui/tokens';
-import { Card } from '@vms/ui';
+import { Card,
+  showToast,
+} from '@vms/ui';
 import { StatusBadge } from '@vms/ui';
 import { Button } from '@vms/ui';
 
@@ -47,14 +49,14 @@ export const SecurityDashboardView: React.FC = () => {
           variant="secondary"
           size="dense"
           style={{ backgroundColor: '#ffffff', color: colors.status.danger.solid, fontWeight: 800 }}
-          onClick={() => alert('Dispatched shift patrol to Solvent Storage Bay B')}
+          onClick={() => showToast('Shift patrol dispatched to Solvent Storage Bay B.')}
         >
           Acknowledge / Dispatch
         </Button>
       </div>
 
       {/* 2. SECURITY SPLIT VIEW: Gate Monitor & Access Denials */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: '16px' }}>
         {/* Gate Activity & Live Lane Monitor */}
         <Card title="Live Gate Lane Monitor" subtitle="Turnstiles, Boom Barriers, and ANPR feed telemetry">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -63,7 +65,7 @@ export const SecurityDashboardView: React.FC = () => {
                 <div style={{ width: '10px', height: '10px', borderRadius: radius.full, backgroundColor: colors.status.success.solid }} />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <strong style={{ fontSize: typography.fontSize.xs.size }}>Gate 1 — Pedestrian Turnstile #1A</strong>
-                  <span style={{ fontSize: '11px', color: colors.slate[500] }}>Passage: Aravind S. (Siemens) • Inbound</span>
+                  <span style={{ fontSize: '11px', color: colors.slate[500] }}>Passage: Aravind S. (Sievert) • Inbound</span>
                 </div>
               </div>
               <StatusBadge status="approved" size="micro" />
@@ -124,14 +126,14 @@ export const SecurityDashboardView: React.FC = () => {
       </div>
 
       {/* 3. OVERSTAYS AND RECENT SECURITY EVENTS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: '16px' }}>
         {/* Active Overstay Tracker */}
         <Card title="Active Overstay Tracker" subtitle="Personnel exceeding authorized exit time by &gt; 30 minutes">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: colors.status.overdue.bg, border: `1px solid ${colors.status.overdue.border}`, borderRadius: radius.sm }}>
               <div>
                 <strong style={{ fontSize: typography.fontSize.xs.size, color: colors.status.overdue.fg }}>
-                  Karthik Raja (L&T Construction)
+                  Karthik Raja (LKT Construction)
                 </strong>
                 <div style={{ fontSize: '11px', color: colors.slate[600] }}>
                   Scheduled Exit: 12:00 PM • Overstayed: <strong>+4h 25m</strong>
@@ -140,7 +142,7 @@ export const SecurityDashboardView: React.FC = () => {
                   Host: Arun Kumar (Ext: 4421)
                 </div>
               </div>
-              <Button variant="danger" size="dense" onClick={() => alert('Host contacted')}>
+              <Button variant="danger" size="dense" onClick={() => showToast('Host notified.')}>
                 Call Host
               </Button>
             </div>

@@ -4,7 +4,7 @@
 [![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-8.3-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38b2ac.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-286%20unit%20%2B%209%20integration-success.svg)](https://nodejs.org/api/test.html)
+[![Tests](https://img.shields.io/badge/Tests-305%20unit%20%2B%2021%20integration-success.svg)](https://nodejs.org/api/test.html)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 
@@ -61,7 +61,7 @@ vms-enterprise/
 │   ├── visitor/               # Visitor lifecycle, group booking, overstay SLA, Scope 3 Cat 6
 │   ├── customer/              # Customer audits, PPAP inspection workflow, bilateral NDA gating
 │   └── contractor/            # Vendor MSAs, headcount caps, craft roster, Scope 3 Cat 7 commuter carbon
-├── tests/                     # Unit, domain and security suites (286) + tests/integration (API + PostgreSQL)
+├── tests/                     # Unit, domain and security suites (305) + tests/integration (API + PostgreSQL)
 ├── Dockerfile                 # Production image (API + console, non-root)
 └── docker-compose.yml         # PostgreSQL + migrations + API
 ```
@@ -150,19 +150,62 @@ vms-enterprise/
 - **Audit**: sign-ins, failures and every state change are appended to `audit_logs`, which nobody — including the
   schema owner — can update or delete.
 
+### Users, roles and passwords
+
+Administrators manage access in the console under **Administration → Users** and **Roles & permissions** (permission
+`USER_MANAGE`: super, organization and site administrators).
+
+- **New users and resets** get a 16-character temporary password, shown to the administrator exactly once and never
+  stored or logged. The user must choose their own password before any other screen or API works
+  (`403 PASSWORD_CHANGE_REQUIRED`).
+- **Password policy**: at least 12 characters with upper- and lowercase letters, a number and a symbol; must not contain
+  the username; the last 5 passwords cannot be reused. Changing a password signs out the user's other sessions.
+- **No privilege escalation**: super admins grant any role; organization admins any role except super admin; site
+  admins only roles whose permissions they hold themselves, never tenant-wide roles, and only at their own sites. An
+  administrator manages a user only if they could have granted all of that user's roles; nobody changes their own
+  access; the last active super admin cannot be removed or suspended.
+- **Every change needs a reason** (roles, sites, profile, reset, unlock, sign-out-everywhere, suspend, deactivate),
+  stored with before/after values in the audit log. Suspending or deactivating ends all sessions at once.
+- **Locked out?** After 5 failed attempts an account locks for 15 minutes; an administrator can unlock it early.
+- **Two-step verification** (authenticator apps, TOTP per RFC 6238): anyone can turn it on from the account menu
+  (password → scan the QR code → confirm a code → save 10 single-use recovery codes). Signing in then needs the password
+  and a current code; the password step alone issues no session, codes work only once, and wrong codes count towards
+  the lockout. Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`, or a key derived from
+  `JWT_SECRET` when unset). An administrator can reset a user's authenticator (lost phone), with a reason.
+- **Organization policy** (Administration → Sign-in security): organization administrators can require two-step
+  verification for everyone who manages users or system settings; those people must set it up before anything else
+  works (`403 MFA_ENROLLMENT_REQUIRED`) and cannot turn it off while the policy is on.
+- **Signed-in devices**: everyone can see where they are signed in (browser, address, last use) and sign out other
+  devices from the account menu.
+
 ### What is live and what is sample data
 
 | Area | Status |
 |---|---|
-| Sign-in, sessions, roles, site scoping | **Live** (PostgreSQL) |
-| Executive dashboard KPI strip | **Live** |
+| Sign-in, two-step verification, sessions and devices, roles, site scoping, forced password change | **Live** (PostgreSQL) |
+| Users & access administration: users, roles, site access, passwords, lockouts, two-step resets, sign-in policy | **Live** |
+| Overview: figures the role may see, items needing attention, latest visits, recent activity | **Live** |
 | Visitor register: pre-register → approve/reject → gate check-in → check-out, cancel | **Live** |
 | Service management: requests, work orders, technicians, calendar, recurring schedules, exceptions, transport capture | **Live** |
-| Contractor companies, customer accounts, audit ledger | **Live** (read) |
-| All other module screens (analytics, ESG, materials, workflows, …) | Sample data, clearly labelled in the UI |
+| Contractor companies, customer accounts | **Live** (read, paged) |
+| Audit log with names, filters and search | **Live** |
+| All other module screens (analytics, ESG, materials, workflows, …) | **Preview**: sample data, listed in a separate "Preview" menu group and labelled on screen |
 
-Without an API (e.g. the GitHub Pages build) the console starts in **demo mode**: sample data everywhere and a
-role switcher for previewing personas.
+**Role-based menus.** A signed-in user's menu is built from the permissions the server grants across *all* of
+their roles (19 roles; every tenant gets the full catalog, see `packages/database/migrations/009_role_catalog.sql`).
+Hiding a menu item is never the control: every API route checks permissions, site scope and segregation of duties.
+
+The console never renders a screen outside the user's menu (search, shortcuts and links included); it shows "not part
+of your role" instead.
+
+**Demo mode** is used only by demo builds (`VITE_DEMO_MODE=true`, e.g. GitHub Pages) or a host with no API at all.
+Visitors sign in with a demo account (password `Demo#2026`: `admin`, `site.admin`, `security.manager`, `guard`,
+`reception`, `host`, `service.manager`, `ehs`, `esg`, `auditor`) and see only what that role may see. Overview, Users,
+Roles, Sign-in security and the audit log run on the same screens as production, answered inside the browser from sample data with the
+same escalation rules (`apps/web/src/demo/demoBackend.ts`); nothing is sent anywhere. A production console whose
+server is briefly unreachable shows a "Can't reach the server" screen and retries; it never falls back to sample data.
+
+The console works on phones and tablets: below 960px the menu becomes a drawer.
 
 ### Quick start with Docker Compose (recommended)
 
@@ -179,7 +222,10 @@ open http://localhost:8080             # organization code: GLOBAL-MFG
 
 The seed migration (`002_seed_data.sql`) creates the demo tenant `GLOBAL-MFG` with sites, gates and users
 (`admin.detroit`, `guard.detroit`, `host.mary`, `esg.officer`); none of them can sign in until a password is set
-with `db:bootstrap-user`. Put a TLS-terminating reverse proxy in front for real deployments and set `TRUST_PROXY=true`.
+with `db:bootstrap-user`. Put a TLS-terminating reverse proxy in front for real deployments and set `TRUST_PROXY=true`
+(the API logs a warning when it sees `X-Forwarded-For` while this is off). The refresh cookie is `Secure` in production;
+`COOKIE_SECURE=false` exists only for plain-HTTP test setups. Signed-in traffic is rate limited per user; sign-in per
+account (`RATE_LIMIT_LOGIN_MAX`) and per network address (`RATE_LIMIT_LOGIN_IP_MAX`, default 100 for office NAT).
 
 ### Local development (without Docker)
 
@@ -204,7 +250,7 @@ npm run dev                             # optional: Vite UI on :3000 in demo mod
 | `npm run db:bootstrap-user` | Set a user's password (policy-checked) and optionally grant a role |
 | `npm run api:dev` / `npm run api:start` | Run the API (+ web console) |
 | `npm run build` | Typecheck and build the web console |
-| `npm test` | 286 unit / domain tests |
+| `npm test` | 305 unit / domain tests |
 | `npm run test:integration` | API + PostgreSQL end-to-end tests (needs `INTEGRATION_DATABASE_URL` of a role that can create databases) |
 
 Migrations are recorded in `schema_migrations` with a SHA-256 checksum; editing an applied migration is refused —
@@ -238,11 +284,16 @@ See [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) for the security review
 
 ## 📊 Verification & Test Metrics
 
-- **Unit / domain tests**: 305 passed across 28 suites (`npm test`)
-- **Integration tests**: 19 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
-  role refusal, login lockout, visitor lifecycle with segregation of duties, cross-tenant isolation, refresh-token
-  rotation/reuse, input validation and security headers, plus 10 Service scenarios (`npm run test:integration`).
-  Details: [`docs/service/test-results.md`](docs/service/test-results.md)
+- **Unit / domain tests**: 329 passed (`npm test`), including the RFC 6238 reference values for two-step codes
+- **Integration tests**: 34 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
+  role refusal, login lockout, visitor lifecycle with segregation of duties (including secondary HOST roles),
+  cross-tenant isolation, refresh-token rotation, parallel-tab refresh and reuse detection, input validation and
+  security headers, 5 access-administration scenarios (temporary passwords, forced change, escalation guards, site
+  scope, lockout recovery, tenant isolation, permission-shaped dashboard and audit log), 8 two-step verification
+  scenarios (setup, code and recovery-code sign-in, replay and forgery refusal, lockout, unreadable secrets, administrator reset,
+  organization policy, signed-in devices), plus 12 Service scenarios
+  (`npm run test:integration`).
+  Details: [`docs/service/test-results.md`](docs/service/test-results.md) and [`docs/LAUNCH_READINESS.md`](docs/LAUNCH_READINESS.md)
 - **TypeScript Typecheck**: 0 errors (`tsc --noEmit`)
 - **Dependencies**: `npm audit` — 0 known vulnerabilities
 - **Architecture Documentation**: 60+ documents with 100+ Mermaid diagrams

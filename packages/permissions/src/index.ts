@@ -33,6 +33,7 @@ export type PermissionAction =
   | 'GHG_FACTOR_MANAGE'
   | 'AUDIT_LOG_READ'
   | 'SYSTEM_ADMIN_MANAGE'
+  | 'USER_MANAGE'             // create users, assign roles and sites, reset passwords (escalation-guarded)
   | 'WORKFLOW_READ'
   | 'WORKFLOW_MANAGE'
   | 'WORKFLOW_PUBLISH'
@@ -113,6 +114,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'service.read', 'service.create', 'service.approve', 'document.read', 'vehicle.read', 'gate.read', 'esg.activity.read',
   ],
   SUPER_ADMIN: [
+    'USER_MANAGE',
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
     'CUSTOMER_READ', 'CUSTOMER_WRITE', 'CUSTOMER_APPROVE',
     'CONTRACTOR_READ', 'CONTRACTOR_WRITE',
@@ -150,6 +152,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'SERVICE_REQUEST_CREATE', 'SERVICE_APPROVE', 'SERVICE_MANAGE', 'SERVICE_EXECUTE', 'SERVICE_ARRIVAL_RECORD', 'SERVICE_ACCEPT', 'SERVICE_PREREQ_VERIFY',
   ],
   ORGANIZATION_ADMIN: [
+    'USER_MANAGE',
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
     'CUSTOMER_READ', 'CUSTOMER_WRITE', 'CUSTOMER_APPROVE',
     'CONTRACTOR_READ', 'CONTRACTOR_WRITE',
@@ -173,6 +176,7 @@ export const ROLE_PERMISSIONS: Record<EnterpriseRole, PermissionAction[]> = {
     'SERVICE_READ', 'SERVICE_MANAGE',
   ],
   SITE_ADMIN: [
+    'USER_MANAGE',
     'VISITOR_READ', 'VISITOR_WRITE', 'VISITOR_APPROVE',
     'CUSTOMER_READ', 'CUSTOMER_WRITE', 'CUSTOMER_APPROVE',
     'CONTRACTOR_READ', 'CONTRACTOR_WRITE',
@@ -429,6 +433,35 @@ export interface AccessDecision {
 /**
  * Normalizes permission strings between dot notation and legacy uppercase
  */
+/** Roles whose holders administer the whole tenant rather than assigned sites. */
+export const TENANT_WIDE_ROLES: EnterpriseRole[] = ['SUPER_ADMIN', 'ORGANIZATION_ADMIN'];
+
+/** Every permission granted by a set of roles. */
+export function permissionsOfRoles(roles: EnterpriseRole[]): PermissionAction[] {
+  return Array.from(new Set(roles.flatMap(r => ROLE_PERMISSIONS[r] || [])));
+}
+
+/**
+ * Privilege-escalation guard for access administration:
+ * - super admins grant any role;
+ * - organization (tenant-wide) admins grant any role except SUPER_ADMIN;
+ * - every other administrator (site admins) grants only roles whose permissions they already hold,
+ *   and never the tenant-wide or IT administration roles.
+ */
+export function canAssignRole(actorRoles: EnterpriseRole[], role: EnterpriseRole): boolean {
+  if (actorRoles.includes('SUPER_ADMIN')) return true;
+  if (role === 'SUPER_ADMIN') return false;
+  if (actorRoles.includes('ORGANIZATION_ADMIN')) return true;
+  if (role === 'ORGANIZATION_ADMIN' || role === 'IT_ADMIN') return false;
+  const held = permissionsOfRoles(actorRoles);
+  return (ROLE_PERMISSIONS[role] || []).every(p => hasPermissionMatch(held, p));
+}
+
+/** An administrator manages another user only when they could have granted every role that user holds. */
+export function canManageUserWithRoles(actorRoles: EnterpriseRole[], targetRoles: EnterpriseRole[]): boolean {
+  return targetRoles.every(r => canAssignRole(actorRoles, r));
+}
+
 export function hasPermissionMatch(
   grantedList: PermissionAction[],
   requested: PermissionAction

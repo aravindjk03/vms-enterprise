@@ -1,5 +1,8 @@
 # Part 9 Test Results
 
+> This page records the Part 9 delivery. For the current, complete verification (21 integration scenarios, screen
+> sweeps at three widths, role coverage) see [`../LAUNCH_READINESS.md`](../LAUNCH_READINESS.md).
+
 Recorded on 2026-10-26 in the development container: Node v22.22.0, PostgreSQL 16.15 (local, throwaway databases only).
 These results show the application behaves as specified in tests. They are **not** evidence of production
 readiness or compliance certification.

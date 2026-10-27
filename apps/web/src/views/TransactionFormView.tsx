@@ -43,8 +43,8 @@ export const TransactionFormView: React.FC<{
 
   // Operational Form State (Visitor Pre-Registration Demo)
   const [visitorName, setVisitorName] = useState('Aravind Swaminathan');
-  const [visitorCompany, setVisitorCompany] = useState('Siemens Industrial Automation');
-  const [visitorEmail, setVisitorEmail] = useState('aravind.s@siemens.com');
+  const [visitorCompany, setVisitorCompany] = useState('Sievert Industrial Automation');
+  const [visitorEmail, setVisitorEmail] = useState('aravind.s@sievert.example');
   const [visitorPhone, setVisitorPhone] = useState('+91 98401 23456');
   const [purpose, setPurpose] = useState('PLC Diagnostic & SCADA Upgrade');
   const [hostUserId, setHostUserId] = useState('Vikram Mehta (Plant Lead - Ext: 4102)');
@@ -58,12 +58,12 @@ export const TransactionFormView: React.FC<{
     vehicleClass: 'SEDAN',
     fuelType: 'DIESEL',
     occupancy: 2,
-    originLocation: 'Siemens Regional Campus, Bengaluru',
-    destinationLocation: 'MRF Chennai Plant Gate 1',
+    originLocation: 'Sievert Regional Campus, Bengaluru',
+    destinationLocation: 'Northwind Chennai Plant Gate 1',
     distanceKm: 348,
     distanceProvenance: 'SYSTEM_ESTIMATED',
     journeyType: 'ROUND_TRIP',
-    fuelProvenance: 'From Siemens Corporate Fleet Profile',
+    fuelProvenance: 'From Sievert Corporate Fleet Profile',
   });
 
   const handleSaveDraft = () => {
@@ -341,7 +341,7 @@ export const TransactionFormView: React.FC<{
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
           gap: '12px',
           padding: '12px 16px',
           backgroundColor: colors.slate[50],
@@ -371,7 +371,7 @@ export const TransactionFormView: React.FC<{
       {/* 3. SECTION 1: OPERATIONAL VISITOR INFORMATION */}
       {(!isMultiStep || activeStep === 1) && (
         <Card title="1. Operational Visitor & Visit Details">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '16px' }}>
             <Input
               label="Visitor Full Name"
               isRequired
@@ -454,7 +454,7 @@ export const TransactionFormView: React.FC<{
       {/* 5. SECTION: COMPLIANCE DOCUMENTS & KYC */}
       {(!isMultiStep || activeStep === 3) && (
         <Card title="2. Mandatory Compliance & Verification Documents" subtitle="Government KYC, Non-Disclosure Agreement (NDA) & Safety Induction">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
             <FileUploader
               label="Government Identification (Aadhaar / Passport / DL)"
               helperText="PDF or scanned photo (Max 10MB)"
@@ -481,7 +481,7 @@ export const TransactionFormView: React.FC<{
       {(!isMultiStep || activeStep === 4) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <Card title="3. Final Review & Approvals Governance" subtitle="Host approval dispatch and immutable transaction ledger">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', fontSize: typography.fontSize.xs.size }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '12px', fontSize: typography.fontSize.xs.size }}>
               <div>
                 <span style={{ color: colors.slate[500] }}>Visitor:</span>
                 <div style={{ fontWeight: 700 }}>{visitorName || '—'}</div>
@@ -493,7 +493,7 @@ export const TransactionFormView: React.FC<{
               </div>
               <div>
                 <span style={{ color: colors.slate[500] }}>Mobility Route:</span>
-                <div style={{ fontWeight: 700 }}>{esgActivity.originLocation} → MRF Chennai</div>
+                <div style={{ fontWeight: 700 }}>{esgActivity.originLocation} → Northwind Chennai</div>
                 <div style={{ color: colors.esg[700] }}>{esgActivity.distanceKm} km ({esgActivity.mode})</div>
               </div>
               <div>

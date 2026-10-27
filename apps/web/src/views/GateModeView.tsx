@@ -13,7 +13,9 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { colors, radius, typography } from '@vms/ui/tokens';
-import { Button } from '@vms/ui';
+import { Button,
+  showToast,
+} from '@vms/ui';
 import { GateDecisionPanel, type GateDecisionSubject } from '@vms/ui';
 
 export const GateModeView: React.FC = () => {
@@ -30,7 +32,7 @@ export const GateModeView: React.FC = () => {
         identifier: 'VIS-2026-00182',
         name: 'Aravind Swaminathan',
         domain: 'VISITOR',
-        company: 'Siemens Industrial Automation',
+        company: 'Sievert Industrial Automation',
         passValid: true,
         inductionValid: true,
         zoneAuthorized: true,
@@ -136,7 +138,7 @@ export const GateModeView: React.FC = () => {
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '320px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 'min(320px, 100%)' }}>
           <Scan size={24} color={colors.primary[600]} />
           <input
             type="text"
@@ -162,7 +164,7 @@ export const GateModeView: React.FC = () => {
         </div>
 
         {/* Quick Demo Scan Buttons for Rapid Evaluation */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <Button
             variant="outline"
             size="dense"
@@ -199,7 +201,7 @@ export const GateModeView: React.FC = () => {
       </div>
 
       {/* 2. SPLIT VIEW: ANPR & Physical Lane Telemetry (Left) + Gate Decision Panel (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: '16px' }}>
         {/* Left: Optical Camera & ANPR Live Preview */}
         <div
           style={{
@@ -274,7 +276,7 @@ export const GateModeView: React.FC = () => {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
               gap: '10px',
               fontSize: typography.fontSize.xs.size,
             }}
@@ -299,7 +301,7 @@ export const GateModeView: React.FC = () => {
           onAllow={handleAllow}
           onDeny={handleDeny}
           onClear={() => setActiveSubject(null)}
-          onReprint={() => alert('Printing thermal gate pass with QR token')}
+          onReprint={() => showToast('Gate pass with QR token sent to the thermal printer.', 'info')}
         />
       </div>
 

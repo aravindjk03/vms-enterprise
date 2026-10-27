@@ -7,6 +7,7 @@ import { PageHeader, useApi } from '../LiveViews.js';
 import {
   BackLink,
   buttonStyle,
+  card,
   can,
   ErrorNote,
   FormGrid,
@@ -21,6 +22,7 @@ import {
   SelectField,
   SERVICE_TYPES,
   TextField,
+  titleWithRef,
   useMutation,
   usePagedList,
   useSites,
@@ -99,22 +101,32 @@ export const ServiceDashboard: React.FC<{ go: (route: string) => void }> = ({ go
         }
       />
       <ErrorNote error={error} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(168px, 100%), 1fr))', gap: '14px', marginBottom: '20px' }}>
         {tiles.map(([title, key, route]) => (
           <button
             key={key}
             type="button"
+            className="vms-card-link"
             onClick={() => go(route)}
-            style={{ textAlign: 'left', border: `1px solid ${colors.slate[200]}`, borderRadius: radius.lg, padding: '14px', backgroundColor: '#fff', cursor: 'pointer' }}
+            style={{ ...card, textAlign: 'left', padding: '16px 18px', cursor: 'pointer', font: 'inherit' }}
           >
-            <div style={{ fontSize: '11px', fontWeight: 600, color: colors.slate[500], textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</div>
-            <div style={{ fontSize: '26px', fontWeight: 800, color: key === 'overdueWork' && data && data.overdueWork > 0 ? colors.status.danger.fg : colors.slate[900], fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{ fontSize: '13px', fontWeight: 500, color: colors.slate[600] }}>{title}</div>
+            <div
+              style={{
+                fontSize: '28px',
+                lineHeight: '36px',
+                marginTop: '6px',
+                fontWeight: 700,
+                color: key === 'overdueWork' && data && data.overdueWork > 0 ? colors.status.danger.fg : colors.slate[900],
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
               {data ? String(data[key]) : '—'}
             </div>
           </button>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '16px' }}>
         <Distribution title="Work orders by category" rows={data?.byCategory ?? []} />
         <Distribution title="Work orders by provider" rows={data?.byProvider ?? []} />
         <Distribution title="Work orders by site" rows={data?.bySite ?? []} />
@@ -166,15 +178,13 @@ export const RequestsView: React.FC<{ user: SessionUser; openCreate?: boolean; o
   }
 
   const columns: ColumnDef<RequestRow>[] = [
-    { key: 'referenceNumber', header: 'Reference', render: r => reference(r.referenceNumber) },
-    { key: 'title', header: 'Request', render: r => <strong>{r.title}</strong> },
-    { key: 'serviceType', header: 'Type', render: r => label(r.serviceType) },
-    { key: 'priority', header: 'Priority', render: r => pill(r.priority) },
-    { key: 'siteName', header: 'Site' },
-    { key: 'requestedBy', header: 'Requested by' },
-    { key: 'createdAt', header: 'Raised', render: r => when(r.createdAt) },
-    { key: 'workOrders', header: 'Work orders', align: 'right' },
+    { key: 'title', header: 'Request', wrap: true, minWidth: '220px', render: r => titleWithRef(r.title, r.referenceNumber) },
     { key: 'status', header: 'Status', render: r => pill(r.status) },
+    { key: 'priority', header: 'Priority', render: r => pill(r.priority) },
+    { key: 'serviceType', header: 'Type', wrap: true, render: r => label(r.serviceType) },
+    { key: 'siteName', header: 'Site', wrap: true, minWidth: '140px' },
+    { key: 'requestedBy', header: 'Requested', wrap: true, render: r => <div>{r.requestedBy}<div style={{ fontSize: '11px', color: colors.slate[500] }}>{when(r.createdAt)}</div></div> },
+    { key: 'workOrders', header: 'Work orders', align: 'right' },
   ];
 
   return (
@@ -346,6 +356,10 @@ const RequestDetail: React.FC<{ id: string; user: SessionUser; onBack: () => voi
 
   const isRequester = data.requestedById === user.userId;
   const canDecide = can(user, 'SERVICE_APPROVE') && data.status === 'SUBMITTED' && !isRequester;
+  // A request whose every work order was cancelled or rejected can still be closed by cancelling it.
+  const workStopped =
+    data.status === 'WORK_ORDERED' && (data.workOrders ?? []).length > 0 && data.workOrders.every(w => ['CANCELLED', 'REJECTED'].includes(w.status));
+  const cancellable = ['SUBMITTED', 'APPROVED'].includes(data.status) || workStopped;
   return (
     <div>
       <BackLink onClick={onBack}>Requests</BackLink>
@@ -376,7 +390,7 @@ const RequestDetail: React.FC<{ id: string; user: SessionUser; onBack: () => voi
         {data.prerequisites && <p style={{ fontSize: '13px', margin: '8px 0 0' }}><strong>Prerequisites:</strong> {data.prerequisites}</p>}
       </Section>
 
-      {(canDecide || (data.status === 'SUBMITTED' && isRequester) || (['SUBMITTED', 'APPROVED'].includes(data.status) && (isRequester || can(user, 'SERVICE_MANAGE')))) && (
+      {(canDecide || (data.status === 'SUBMITTED' && isRequester) || (cancellable && (isRequester || can(user, 'SERVICE_MANAGE')))) && (
         <Section title="Decision">
           {data.status === 'SUBMITTED' && isRequester && can(user, 'SERVICE_APPROVE') && (
             <Notice tone="warning">You raised this request, so another approver must decide on it.</Notice>
@@ -389,7 +403,7 @@ const RequestDetail: React.FC<{ id: string; user: SessionUser; onBack: () => voi
                 <button type="button" style={buttonStyle('danger')} disabled={m.busy} onClick={() => void act('reject')}>Reject</button>
               </>
             )}
-            {['SUBMITTED', 'APPROVED'].includes(data.status) && (isRequester || can(user, 'SERVICE_MANAGE')) && (
+            {cancellable && (isRequester || can(user, 'SERVICE_MANAGE')) && (
               <button type="button" style={buttonStyle()} disabled={m.busy} onClick={() => void act('cancel')}>Cancel request</button>
             )}
           </div>

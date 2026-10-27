@@ -10,9 +10,11 @@ import {
   can,
   card,
   ErrorNote,
+  fmtDate,
   FormGrid,
   KeyValues,
   label,
+  localDateString,
   Notice,
   PagedTable,
   pill,
@@ -20,6 +22,7 @@ import {
   Section,
   SelectField,
   TextField,
+  titleWithRef,
   useMutation,
   usePagedList,
   useSites,
@@ -189,7 +192,7 @@ export const ServiceCalendar: React.FC<{ onOpenWorkOrder: (id: string) => void }
                 >
                   <strong>{new Date(i.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</strong> {i.title}
                   {view !== 'month' && (
-                    <span style={{ display: 'block', color: colors.slate[500] }}>
+                    <span style={{ display: 'block', color: colors.slate[500], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {i.providerName} · {i.technicians.length ? i.technicians.map(t => t.name).join(', ') : 'unassigned'} · {label(i.status)}
                     </span>
                   )}
@@ -243,14 +246,13 @@ export const SchedulesView: React.FC<{ user: SessionUser; onOpenWorkOrder: (id: 
 
   if (selected) return <ScheduleDetail id={selected} user={user} onBack={() => { setSelected(null); void list.reload(); }} onOpenWorkOrder={onOpenWorkOrder} />;
   const columns: ColumnDef<ScheduleRow>[] = [
-    { key: 'referenceNumber', header: 'Reference', render: r => reference(r.referenceNumber) },
-    { key: 'title', header: 'Schedule', render: r => <strong>{r.title}</strong> },
-    { key: 'frequency', header: 'Recurrence', render: r => describeRule(r) },
-    { key: 'providerName', header: 'Provider' },
-    { key: 'siteName', header: 'Site' },
+    { key: 'title', header: 'Schedule', wrap: true, minWidth: '200px', render: r => titleWithRef(r.title, r.referenceNumber) },
+    { key: 'status', header: 'Status', render: r => pill(r.status) },
+    { key: 'frequency', header: 'Recurrence', wrap: true, minWidth: '160px', render: r => describeRule(r) },
+    { key: 'providerName', header: 'Provider', wrap: true, minWidth: '120px' },
+    { key: 'siteName', header: 'Site', wrap: true, minWidth: '140px' },
     { key: 'occurrences', header: 'Occurrences', align: 'right' },
     { key: 'missed', header: 'Missed', align: 'right' },
-    { key: 'status', header: 'Status', render: r => pill(r.status) },
   ];
   return (
     <div>
@@ -298,7 +300,7 @@ const ScheduleForm: React.FC<{ onCancel: () => void; onCreated: (id: string) => 
     frequency: 'WEEKLY',
     intervalCount: '1',
     dayOfMonth: '1',
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: localDateString(),
     endDate: '',
     windowStartTime: '08:00',
     durationMinutes: '120',
@@ -422,7 +424,7 @@ const ScheduleDetail: React.FC<{ id: string; user: SessionUser; onBack: () => vo
           </>
         }
       >
-        <KeyValues items={[['Recurrence', describeRule(data)], ['Duration', `${data.durationMinutes} min`], ['Period', `${data.startDate} → ${data.endDate ?? 'open'}`], ['Deliverables', data.deliverables.join('; ') || '—']]} />
+        <KeyValues items={[['Recurrence', describeRule(data)], ['Duration', `${data.durationMinutes} min`], ['Period', `${fmtDate(data.startDate)} → ${data.endDate ? fmtDate(data.endDate) : 'open'}`], ['Deliverables', data.deliverables.join('; ') || '—']]} />
         <p style={{ fontSize: '13px', margin: '10px 0 0' }}>{data.scopeOfWork}</p>
       </Section>
       {data.status === 'ACTIVE' && can(user, 'SERVICE_MANAGE') && (
@@ -488,18 +490,17 @@ export const ExceptionsView: React.FC<{ user: SessionUser; onOpenWorkOrder: (id:
   const [resolution, setResolution] = useState('');
   const m = useMutation();
   const columns: ColumnDef<ExceptionRow>[] = [
-    { key: 'referenceNumber', header: 'Reference', render: r => reference(r.referenceNumber) },
-    { key: 'exceptionType', header: 'Type', render: r => label(r.exceptionType) },
+    { key: 'exceptionType', header: 'Exception', wrap: true, minWidth: '160px', render: r => titleWithRef(label(r.exceptionType), r.referenceNumber) },
+    { key: 'status', header: 'Status', render: r => pill(r.status) },
     { key: 'severity', header: 'Severity', render: r => pill(r.severity) },
-    { key: 'description', header: 'Description' },
-    { key: 'siteName', header: 'Site' },
+    { key: 'description', header: 'Description', wrap: true, minWidth: '240px' },
+    { key: 'siteName', header: 'Site', wrap: true, minWidth: '140px' },
     {
       key: 'workOrderReference',
       header: 'Work order',
       render: r => (r.workOrderId ? <button type="button" style={{ ...buttonStyle(), padding: '2px 8px' }} onClick={e => { e.stopPropagation(); onOpenWorkOrder(r.workOrderId!); }}>{r.workOrderReference}</button> : '—'),
     },
     { key: 'raisedAt', header: 'Raised', render: r => when(r.raisedAt) },
-    { key: 'status', header: 'Status', render: r => pill(r.status) },
   ];
   return (
     <div>

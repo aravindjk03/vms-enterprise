@@ -6,8 +6,8 @@ import type { TimelineEventItem } from '@vms/ui';
 
 export const DEMO_SITES: SiteContextOption[] = [
   {
-    organizationId: 'ORG-MRF-INDIA',
-    organizationName: 'MRF Tyres & Polymers',
+    organizationId: 'ORG-NORTHWIND-IN',
+    organizationName: 'Northwind Tyres & Polymers',
     siteId: 'SITE-CHN-01',
     siteName: 'Chennai Radial Tyre Plant',
     gateId: 'GATE-01',
@@ -16,8 +16,8 @@ export const DEMO_SITES: SiteContextOption[] = [
     zoneName: 'Administrative Lobby',
   },
   {
-    organizationId: 'ORG-MRF-INDIA',
-    organizationName: 'MRF Tyres & Polymers',
+    organizationId: 'ORG-NORTHWIND-IN',
+    organizationName: 'Northwind Tyres & Polymers',
     siteId: 'SITE-PUN-02',
     siteName: 'Pune Stamping & Assembly Plant',
     gateId: 'GATE-02',
@@ -26,8 +26,8 @@ export const DEMO_SITES: SiteContextOption[] = [
     zoneName: 'Raw Materials Bay',
   },
   {
-    organizationId: 'ORG-MRF-INDIA',
-    organizationName: 'MRF Tyres & Polymers',
+    organizationId: 'ORG-NORTHWIND-IN',
+    organizationName: 'Northwind Tyres & Polymers',
     siteId: 'SITE-JSR-03',
     siteName: 'Jamshedpur Heavy Logistics Complex',
     gateId: 'GATE-03',
@@ -65,7 +65,7 @@ export const DEMO_NOTIFICATIONS: NotificationItem[] = [
     category: 'APPROVAL',
     severity: 'HIGH',
     title: 'VIP Customer Delegation Pending Sign-off',
-    message: 'Mercedes-Benz Global Quality Audit team (6 delegates) awaiting Plant Director approval.',
+    message: 'Meridian Motorworks Global Quality Audit team (6 delegates) awaiting Plant Director approval.',
     timestamp: '14 mins ago',
     isRead: false,
     sourceTransactionId: 'CUST-2026-0089',
@@ -110,7 +110,7 @@ export const DEMO_VISITORS = [
   {
     id: 'VIS-2026-00182',
     name: 'Aravind Swaminathan',
-    company: 'Siemens Industrial Automation',
+    company: 'Sievert Industrial Automation',
     purpose: 'PLC Diagnostic & SCADA Upgrade',
     host: 'Vikram Mehta (Plant Lead)',
     time: '10:00 AM - 04:00 PM',
@@ -123,7 +123,7 @@ export const DEMO_VISITORS = [
   {
     id: 'VIS-2026-00183',
     name: 'Priya Sundaram',
-    company: 'TÜV SÜD South Asia',
+    company: 'Certora South Asia',
     purpose: 'ISO 14001 Environmental Audit',
     host: 'Kavita Nair (EHS Head)',
     time: '09:00 AM - 05:00 PM',
@@ -136,7 +136,7 @@ export const DEMO_VISITORS = [
   {
     id: 'VIS-2026-00184',
     name: 'Robert Chen',
-    company: 'Bridgestone Technical delegation',
+    company: 'Brightstone Technical delegation',
     purpose: 'Rubber Extrusion Benchmark',
     host: 'Suresh Babu (VP Operations)',
     time: '11:30 AM - 02:00 PM',
@@ -149,7 +149,7 @@ export const DEMO_VISITORS = [
   {
     id: 'VIS-2026-00185',
     name: 'Karthik Raja',
-    company: 'L&T Construction',
+    company: 'LKT Construction',
     purpose: 'Civil Expansion Site Survey',
     host: 'Arun Kumar (Facilities Mgr)',
     time: '08:15 AM - 12:00 PM',
@@ -177,7 +177,7 @@ export const DEMO_VISITORS = [
 export const DEMO_CONTRACTORS = [
   {
     id: 'CONT-WO-2026-001',
-    company: 'Thermax Heavy Engineering',
+    company: 'Thermora Heavy Engineering',
     workOrder: 'WO-88291 (Boiler Overhaul)',
     workersCount: 28,
     activeInside: 26,
@@ -245,7 +245,7 @@ export const DEMO_MATERIALS = [
     challan: 'DC-OUT-1029',
     type: 'OUTWARD',
     classification: 'SCRAP',
-    supplier: 'Tata Metaliks Recycling',
+    supplier: 'Taravel Metaliks Recycling',
     item: 'Scrap Steel Bead Wire Cuttings',
     grossWeight: '22,100 kg',
     netWeight: '14,800 kg',
@@ -292,7 +292,7 @@ export const DEMO_VEHICLES = [
 export const DEMO_CUSTOMERS = [
   {
     id: 'CUST-2026-0041',
-    account: 'Toyota Kirloskar Motor Ltd',
+    account: 'Kintaro Kirlana Motor Ltd',
     agenda: 'OEM Radial Tyre Audit & PPAP Review',
     host: 'Suresh Babu (VP Operations)',
     lead: 'Kenji Sato (VP Quality)',
@@ -302,7 +302,7 @@ export const DEMO_CUSTOMERS = [
   },
   {
     id: 'CUST-2026-0042',
-    account: 'Tata Motors Commercial Vehicles',
+    account: 'Taravel Motors Commercial Vehicles',
     agenda: 'Bus & Truck Radial Compound Inspection',
     host: 'Vikram Mehta (Plant Lead)',
     lead: 'Sunil Deshmukh (Procurement Head)',
@@ -312,7 +312,7 @@ export const DEMO_CUSTOMERS = [
   },
   {
     id: 'CUST-2026-0043',
-    account: 'Mercedes-Benz India Pvt Ltd',
+    account: 'Meridian Motorworks India Pvt Ltd',
     agenda: 'Global Sustainability ESG Assessment',
     host: 'Kavita Nair (EHS Head)',
     lead: 'Dr. Florian Becker (Auditor)',
@@ -338,7 +338,7 @@ export const DEMO_SERVICES = [
     serviceType: 'Preventive Overhaul',
     equipment: 'Compressor Substation B',
     technician: 'Rajesh Varma',
-    vendor: 'Atlas Copco India',
+    vendor: 'Atlantic Compressors India',
     permitRequired: 'CONFINED_SPACE',
     hazardRating: 'MEDIUM',
     status: 'approved',
@@ -376,7 +376,7 @@ export const DEMO_DOCUMENTS = [
   {
     id: 'DOC-2026-091',
     name: 'Plant Non-Disclosure Agreement (NDA)',
-    owner: 'Siemens Industrial Automation',
+    owner: 'Sievert Industrial Automation',
     type: 'LEGAL',
     verification: 'VERIFIED',
     expiry: '2029-10-24',
@@ -385,7 +385,7 @@ export const DEMO_DOCUMENTS = [
   {
     id: 'DOC-2026-092',
     name: 'Workmen Compensation Insurance Policy',
-    owner: 'Thermax Heavy Engineering',
+    owner: 'Thermora Heavy Engineering',
     type: 'COMPLIANCE',
     verification: 'VERIFIED',
     expiry: '2027-03-31',
@@ -432,7 +432,7 @@ export const DEMO_TIMELINE_EVENTS: TimelineEventItem[] = [
     id: 'EVT-01',
     time: '09:41',
     title: 'Pre-Registration Created',
-    description: 'Scheduled by Siemens Guest Host Vikram Mehta.',
+    description: 'Scheduled by Sievert Guest Host Vikram Mehta.',
     status: 'COMPLETED',
   },
   {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Users,
   UserCheck,
@@ -144,8 +144,8 @@ const INITIAL_VISITORS: VisitorRecordItem[] = [
     referenceNumber: 'VIS-2026-000182',
     name: 'Aravind Swaminathan',
     phone: '+91-9884011223',
-    email: 'aravind@siemens.com',
-    company: 'Siemens Industrial Automation',
+    email: 'aravind@sievert.example',
+    company: 'Sievert Industrial Automation',
     designation: 'Senior Field Systems Engineer',
     visitorCategory: 'CONSULTANT',
     purpose: 'SITE_VISIT',
@@ -192,8 +192,8 @@ const INITIAL_VISITORS: VisitorRecordItem[] = [
     referenceNumber: 'VIS-2026-000183',
     name: 'Priya Sundaram',
     phone: '+91-9444098765',
-    email: 'priya.s@tuvsud.com',
-    company: 'TÜV SÜD South Asia',
+    email: 'priya.s@tuvsud.example',
+    company: 'Certora South Asia',
     designation: 'Lead Environmental Auditor',
     visitorCategory: 'AUDITOR',
     purpose: 'AUDIT',
@@ -239,8 +239,8 @@ const INITIAL_VISITORS: VisitorRecordItem[] = [
     referenceNumber: 'VIS-2026-000184',
     name: 'Dr. Robert Chen',
     phone: '+1-415-889-1122',
-    email: 'rchen@bridgestone-tech.com',
-    company: 'Bridgestone Global Engineering',
+    email: 'rchen@brightstone-tech.example',
+    company: 'Brightstone Global Engineering',
     designation: 'VP Material Formulations',
     visitorCategory: 'VIP_VISITOR',
     purpose: 'MEETING',
@@ -283,7 +283,7 @@ const INITIAL_VISITORS: VisitorRecordItem[] = [
     referenceNumber: 'VIS-2026-000185',
     name: 'Karthik Raja',
     phone: '+91-9840223344',
-    company: 'L&T Heavy Civil Infra',
+    company: 'LKT Heavy Civil Infra',
     designation: 'Project Site Supervisor',
     visitorCategory: 'CONSULTANT',
     purpose: 'INSPECTION',
@@ -386,6 +386,8 @@ export const VisitorManagementView: React.FC<VisitorManagementViewProps> = ({
   onNavigateSubView,
 }) => {
   const [subView, setSubView] = useState<VisitorSubView>(initialSubView);
+  // Keep the screen in step with the menu item (the component stays mounted between Visitor items).
+  useEffect(() => setSubView(initialSubView), [initialSubView]);
   const [visitors, setVisitors] = useState<VisitorRecordItem[]>(INITIAL_VISITORS);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -1014,7 +1016,7 @@ export const VisitorManagementView: React.FC<VisitorManagementViewProps> = ({
 
       {/* SUBVIEW 3: NEW VISITOR REGISTRATION FORM WITH PROGRESSIVE DISCLOSURE & EMBEDDED ESG */}
       {subView === 'NEW' && (
-        <Card className="bg-white border border-slate-200 p-6 max-w-4xl mx-auto">
+        <Card className="bg-white border border-slate-200 p-4 sm:p-6 w-full max-w-4xl mx-auto">
           <div className="border-b border-slate-200 pb-4 mb-6">
             <h2 className="text-base font-bold text-slate-900">New Visitor Pre-Registration & ESG Activity Capture</h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -1055,7 +1057,7 @@ export const VisitorManagementView: React.FC<VisitorManagementViewProps> = ({
                     type="email"
                     value={formEmail}
                     onChange={e => setFormEmail(e.target.value)}
-                    placeholder="ramesh@company.com"
+                    placeholder="ramesh@company.example"
                     className="w-full text-xs p-2 border border-slate-200 rounded mt-1"
                   />
                 </div>
@@ -1342,7 +1344,7 @@ export const VisitorManagementView: React.FC<VisitorManagementViewProps> = ({
 
       {/* SUBVIEW 4: RETURNING VISITOR FAST LOOKUP & DISAMBIGUATION */}
       {subView === 'REPEATED' && (
-        <Card className="bg-white border border-slate-200 p-6 max-w-2xl mx-auto space-y-4">
+        <Card className="bg-white border border-slate-200 p-4 sm:p-6 w-full max-w-2xl mx-auto space-y-4">
           <div className="border-b border-slate-200 pb-3">
             <h2 className="text-sm font-bold text-slate-900">Returning Visitor Fast Lookup</h2>
             <p className="text-xs text-slate-500 mt-0.5">

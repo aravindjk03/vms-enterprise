@@ -52,8 +52,8 @@ In accordance with global privacy regulations (GDPR, DPDP, ISO 27701) and zero-t
 | **SUPER_ADMIN** | Full Unmasked | Full Unmasked | Full Unmasked |
 | **SECURITY_ADMIN** | Full Unmasked | Full Unmasked | Full Unmasked |
 | **RECEPTIONIST** | Full Unmasked | Full Unmasked | Masked |
-| **SECURITY_GUARD** | Masked (`+65-***-9120`) | Masked (`k***@toyota.com`) | Last 4 Digits Only |
-| **ESG_MANAGER** | Masked (`+65-***-9120`) | Masked (`k***@toyota.com`) | Redacted |
+| **SECURITY_GUARD** | Masked (`+65-***-9120`) | Masked (`k***@kintaro.com`) | Last 4 Digits Only |
+| **ESG_MANAGER** | Masked (`+65-***-9120`) | Masked (`k***@kintaro.com`) | Redacted |
 | **AUDITOR** | Masked | Masked | Redacted |
 
 ### 3.2 Dynamic Masking Algorithm

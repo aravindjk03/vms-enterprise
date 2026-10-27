@@ -48,7 +48,7 @@ export const captureTransportActivity: OutboxHandler = async (tx: Tx, event: Out
     site_id: string;
     source_domain: string;
     source_transaction_id: string;
-    activity_date: Date;
+    activity_date: string;
     transport_mode_id: string | null;
     vehicle_type_id: string | null;
     fuel_type_id: string | null;
@@ -107,12 +107,19 @@ export const captureTransportActivity: OutboxHandler = async (tx: Tx, event: Out
     ]
   );
 
-  // A correction replaces the earlier activity's GHG record rather than editing it.
+  // A correction replaces the earlier versions' GHG records rather than editing them. The whole
+  // chain is walked: an intermediate version corrected before its own capture ran never got a GHG
+  // record, so the original's record would otherwise stay active next to this one.
   if (inserted.rows[0] && activity.supersedes) {
     await tx.query(
-      `UPDATE ghg_activities SET calculation_status = 'SUPERSEDED', superseded_by = $1, updated_at = now()
-        WHERE transport_activity_id = $2 AND superseded_by IS NULL`,
-      [inserted.rows[0].id, activity.supersedes]
+      `WITH RECURSIVE chain AS (
+         SELECT supersedes AS id FROM transport_activities WHERE id = $2
+         UNION ALL
+         SELECT t.supersedes FROM transport_activities t JOIN chain c ON t.id = c.id WHERE t.supersedes IS NOT NULL
+       )
+       UPDATE ghg_activities SET calculation_status = 'SUPERSEDED', superseded_by = $1, updated_at = now()
+        WHERE transport_activity_id IN (SELECT id FROM chain WHERE id IS NOT NULL) AND superseded_by IS NULL`,
+      [inserted.rows[0].id, activity.id]
     );
   }
 };
