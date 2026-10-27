@@ -167,13 +167,23 @@ Administrators manage access in the console under **Administration → Users** a
 - **Every change needs a reason** (roles, sites, profile, reset, unlock, sign-out-everywhere, suspend, deactivate),
   stored with before/after values in the audit log. Suspending or deactivating ends all sessions at once.
 - **Locked out?** After 5 failed attempts an account locks for 15 minutes; an administrator can unlock it early.
+- **Two-step verification** (authenticator apps, TOTP per RFC 6238): anyone can turn it on from the account menu
+  (password → scan the QR code → confirm a code → save 10 single-use recovery codes). Signing in then needs the password
+  and a current code; the password step alone issues no session, codes work only once, and wrong codes count towards
+  the lockout. Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`, or a key derived from
+  `JWT_SECRET` when unset). An administrator can reset a user's authenticator (lost phone), with a reason.
+- **Organization policy** (Administration → Sign-in security): organization administrators can require two-step
+  verification for everyone who manages users or system settings; those people must set it up before anything else
+  works (`403 MFA_ENROLLMENT_REQUIRED`) and cannot turn it off while the policy is on.
+- **Signed-in devices**: everyone can see where they are signed in (browser, address, last use) and sign out other
+  devices from the account menu.
 
 ### What is live and what is sample data
 
 | Area | Status |
 |---|---|
-| Sign-in, sessions, roles, site scoping, forced password change | **Live** (PostgreSQL) |
-| Users & access administration: users, roles, site access, passwords, lockouts | **Live** |
+| Sign-in, two-step verification, sessions and devices, roles, site scoping, forced password change | **Live** (PostgreSQL) |
+| Users & access administration: users, roles, site access, passwords, lockouts, two-step resets, sign-in policy | **Live** |
 | Overview: figures the role may see, items needing attention, latest visits, recent activity | **Live** |
 | Visitor register: pre-register → approve/reject → gate check-in → check-out, cancel | **Live** |
 | Service management: requests, work orders, technicians, calendar, recurring schedules, exceptions, transport capture | **Live** |
@@ -191,7 +201,7 @@ of your role" instead.
 **Demo mode** is used only by demo builds (`VITE_DEMO_MODE=true`, e.g. GitHub Pages) or a host with no API at all.
 Visitors sign in with a demo account (password `Demo#2026`: `admin`, `site.admin`, `security.manager`, `guard`,
 `reception`, `host`, `service.manager`, `ehs`, `esg`, `auditor`) and see only what that role may see. Overview, Users,
-Roles and the audit log run on the same screens as production, answered inside the browser from sample data with the
+Roles, Sign-in security and the audit log run on the same screens as production, answered inside the browser from sample data with the
 same escalation rules (`apps/web/src/demo/demoBackend.ts`); nothing is sent anywhere. A production console whose
 server is briefly unreachable shows a "Can't reach the server" screen and retries; it never falls back to sample data.
 
@@ -274,12 +284,14 @@ See [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) for the security review
 
 ## 📊 Verification & Test Metrics
 
-- **Unit / domain tests**: 320 passed (`npm test`)
-- **Integration tests**: 26 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
+- **Unit / domain tests**: 329 passed (`npm test`), including the RFC 6238 reference values for two-step codes
+- **Integration tests**: 34 end-to-end scenarios on real PostgreSQL 16 — migrations & drift detection, RLS, privileged
   role refusal, login lockout, visitor lifecycle with segregation of duties (including secondary HOST roles),
   cross-tenant isolation, refresh-token rotation, parallel-tab refresh and reuse detection, input validation and
   security headers, 5 access-administration scenarios (temporary passwords, forced change, escalation guards, site
-  scope, lockout recovery, tenant isolation, permission-shaped dashboard and audit log), plus 12 Service scenarios
+  scope, lockout recovery, tenant isolation, permission-shaped dashboard and audit log), 8 two-step verification
+  scenarios (setup, code and recovery-code sign-in, replay and forgery refusal, lockout, unreadable secrets, administrator reset,
+  organization policy, signed-in devices), plus 12 Service scenarios
   (`npm run test:integration`).
   Details: [`docs/service/test-results.md`](docs/service/test-results.md) and [`docs/LAUNCH_READINESS.md`](docs/LAUNCH_READINESS.md)
 - **TypeScript Typecheck**: 0 errors (`tsc --noEmit`)

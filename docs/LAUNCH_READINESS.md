@@ -22,7 +22,11 @@ certification or a compliance attestation.
 | Access changes were not explained | Every change needs a reason, stored with before/after values in the audit log |
 | The dashboard returned every count to every role | Counts a role may not read come back empty; the Overview hides them |
 | The audit ledger showed raw codes and IDs | Plain-language actions, the person's name, filters by action, record type, time and person |
-| The demo had a role switcher and no sign-in | Demo accounts sign in with a password and see only their role's screens; Users, Roles, Overview and the audit log behave as in production with sample data kept in the browser |
+| The demo had a role switcher and no sign-in | Demo accounts sign in with a password and see only their role's screens; Users, Roles, Sign-in security, Overview and the audit log behave as in production with sample data kept in the browser |
+| A stolen password was enough to sign in | Two-step verification with authenticator apps (TOTP, RFC 6238): QR setup, single-use codes, 10 recovery codes, secrets encrypted at rest (AES-256-GCM), wrong codes count towards the lockout (migration 011) |
+| No way to insist on a second factor | Organization policy "require two-step verification for administrators"; affected administrators must set it up before anything else works and cannot turn it off |
+| A lost phone meant a locked-out user | Administrators reset a user's two-step verification with a reason; the user's sessions end |
+| Users could not see where they were signed in | Account menu → Signed-in devices: browser, address and last use per device; sign out one or all others |
 
 ## Design
 
@@ -77,13 +81,13 @@ certification or a compliance attestation.
 | Check | Result |
 |---|---|
 | `npx tsc --noEmit` | 0 errors (also from a clean clone of the branch) |
-| `npm test` | 320 / 320 pass (also from a clean clone) |
-| `npm run test:integration` | 26 / 26 pass (below) |
-| Migrations | fresh database: 10 applied, 19 roles per tenant; re-run: no-op |
-| `npm run build:web` | builds; main script 966 kB (229 kB gzip), stylesheet 25 kB |
+| `npm test` | 329 / 329 pass (also from a clean clone) |
+| `npm run test:integration` | 34 / 34 pass (below) |
+| Migrations | fresh database: 11 applied, 19 roles per tenant; re-run: no-op |
+| `npm run build:web` | builds; main script 1013 kB (244 kB gzip), stylesheet 25 kB |
 | `npm audit` and `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities |
-| Screen sweep | live: 280 screen visits per width for admin, service manager, EHS lead, guard and host at 390 and 1440 px; no horizontal overflow, no menu item blocked, no console or page errors. Demo: 7 demo accounts signed in, menus checked against their roles |
-| Browser workflows | Access: create user → one-time password → edit roles → reset (old password refused) → forced change at first sign-in → role-limited menu → suspend (sign-in refused) → own account read-only. Service (5 roles, 19 steps) and Visitor workflows from the first pass |
+| Screen sweep | live: 281 screen visits per width for admin, service manager, EHS lead, guard and host at 390 and 1440 px; no horizontal overflow, no menu item blocked, no console or page errors. Demo: 7 demo accounts signed in, menus checked against their roles |
+| Browser workflows | Two-step: set up from the account menu with the QR code → 10 recovery codes → require it for administrators → sign in with password + code (wrong code refused) → sign in with a recovery code → a site administrator without it is sent to the setup page and reaches the console only after setting it up. Access: create user → one-time password → edit roles → reset (old password refused) → forced change at first sign-in → role-limited menu → suspend (sign-in refused) → own account read-only. Service (5 roles, 19 steps) and Visitor workflows from the first pass |
 | Sessions | reload keeps the session; sign-out survives reload and clears all cookies |
 
 Integration scenarios: migrations are recorded and re-runs are no-ops; drift detection; refusal to run as a role that
@@ -91,7 +95,11 @@ bypasses RLS; RLS in the database; generic login errors and lockout; visitor lif
 (including a receptionist who is also a host); tenant isolation; refresh rotation, parallel-tab refresh and reuse
 detection, readable session hint, logout; malformed/forged requests and security headers; 5 access-administration
 scenarios (temporary password and forced change, escalation guards, roles/sites/lockout/reset/deactivate with audit
-and password history, tenant isolation, permission-shaped dashboard and audit log); and 12 Service scenarios
+and password history, tenant isolation, permission-shaped dashboard and audit log); 8 two-step verification scenarios
+(encrypted setup confirmed by a code, password-only step issues no session, wrong/replayed/forged codes refused,
+recovery codes single-use and replaceable, lockout from wrong codes, an unreadable secret not counted against the user,
+administrator reset, organization policy for
+administrators only, own devices listed and signed out); and 12 Service scenarios
 (providers, request lifecycle, eligibility, conflicts, milestones, evidence correction, transport and GHG capture with
 correction chains, recurrence, analytics, provider site scoping, request/schedule consistency, child-table RLS).
 
@@ -103,8 +111,11 @@ correction chains, recurrence, analytics, provider site scoping, request/schedul
   most admin screens, task center) still show sample data. They are labelled, but they are not product features yet.
 * **Integrations** that do not exist yet: safety/permit, gate hardware and access control, notification delivery,
   document upload, an AI model. The UI and API say so where they appear.
-* **Single sign-on and MFA** (SAML/OIDC, TOTP) are not built; accounts use passwords only. Self-service password reset
-  by email is not built either (no mail delivery); administrators issue temporary passwords instead.
+* **Single sign-on** (SAML/OIDC) and security keys (WebAuthn/passkeys) are not built; accounts use passwords plus
+  optional (or policy-required) authenticator-app codes. Self-service password reset by email is not built either (no
+  mail delivery); administrators issue temporary passwords instead.
+* **`MFA_ENCRYPTION_KEY`** should be set in production; without it the key is derived from `JWT_SECRET`, and rotating
+  that secret would require everyone to set up two-step verification again (the server logs a warning at start-up).
 * **Not tested**: load and performance, an accessibility audit (keyboard, screen readers, contrast), browsers other than
   Chromium, backup/restore and disaster recovery, penetration testing.
-* **Bundle size**: the console ships as one 966 kB script; code-splitting would speed up the first load on slow networks.
+* **Bundle size**: the console ships as one 1013 kB script; code-splitting would speed up the first load on slow networks.
